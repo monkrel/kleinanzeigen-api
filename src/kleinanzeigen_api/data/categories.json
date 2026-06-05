@@ -1,0 +1,956 @@
+[
+ {
+  "id": "210",
+  "name": "Auto, Rad & Boot",
+  "path": "Auto, Rad & Boot",
+  "real_estate": false
+ },
+ {
+  "id": "216",
+  "name": "Autos",
+  "path": "Auto, Rad & Boot > Autos",
+  "real_estate": false
+ },
+ {
+  "id": "223",
+  "name": "Autoteile & Reifen",
+  "path": "Auto, Rad & Boot > Autoteile & Reifen",
+  "real_estate": false
+ },
+ {
+  "id": "211",
+  "name": "Boote & Bootszubehör",
+  "path": "Auto, Rad & Boot > Boote & Bootszubehör",
+  "real_estate": false
+ },
+ {
+  "id": "217",
+  "name": "Fahrräder & Zubehör",
+  "path": "Auto, Rad & Boot > Fahrräder & Zubehör",
+  "real_estate": false
+ },
+ {
+  "id": "305",
+  "name": "Motorräder & Motorroller",
+  "path": "Auto, Rad & Boot > Motorräder & Motorroller",
+  "real_estate": false
+ },
+ {
+  "id": "306",
+  "name": "Motorradteile & Zubehör",
+  "path": "Auto, Rad & Boot > Motorradteile & Zubehör",
+  "real_estate": false
+ },
+ {
+  "id": "276",
+  "name": "Nutzfahrzeuge & Anhänger",
+  "path": "Auto, Rad & Boot > Nutzfahrzeuge & Anhänger",
+  "real_estate": false
+ },
+ {
+  "id": "280",
+  "name": "Reparaturen & Dienstleistungen",
+  "path": "Auto, Rad & Boot > Reparaturen & Dienstleistungen",
+  "real_estate": false
+ },
+ {
+  "id": "220",
+  "name": "Wohnwagen & -mobile",
+  "path": "Auto, Rad & Boot > Wohnwagen & -mobile",
+  "real_estate": false
+ },
+ {
+  "id": "241",
+  "name": "Weiteres Auto, Rad & Boot",
+  "path": "Auto, Rad & Boot > Weiteres Auto, Rad & Boot",
+  "real_estate": false
+ },
+ {
+  "id": "195",
+  "name": "Immobilien",
+  "path": "Immobilien",
+  "real_estate": true
+ },
+ {
+  "id": "199",
+  "name": "Auf Zeit & WG",
+  "path": "Immobilien > Auf Zeit & WG",
+  "real_estate": true
+ },
+ {
+  "id": "402",
+  "name": "Container",
+  "path": "Immobilien > Container",
+  "real_estate": true
+ },
+ {
+  "id": "196",
+  "name": "Eigentumswohnungen",
+  "path": "Immobilien > Eigentumswohnungen",
+  "real_estate": true
+ },
+ {
+  "id": "275",
+  "name": "Ferien- & Auslandsimmobilien",
+  "path": "Immobilien > Ferien- & Auslandsimmobilien",
+  "real_estate": true
+ },
+ {
+  "id": "197",
+  "name": "Garagen & Stellplätze",
+  "path": "Immobilien > Garagen & Stellplätze",
+  "real_estate": true
+ },
+ {
+  "id": "277",
+  "name": "Gewerbeimmobilien",
+  "path": "Immobilien > Gewerbeimmobilien",
+  "real_estate": true
+ },
+ {
+  "id": "207",
+  "name": "Grundstücke & Gärten",
+  "path": "Immobilien > Grundstücke & Gärten",
+  "real_estate": true
+ },
+ {
+  "id": "208",
+  "name": "Häuser zum Kauf",
+  "path": "Immobilien > Häuser zum Kauf",
+  "real_estate": true
+ },
+ {
+  "id": "205",
+  "name": "Häuser zur Miete",
+  "path": "Immobilien > Häuser zur Miete",
+  "real_estate": true
+ },
+ {
+  "id": "203",
+  "name": "Mietwohnungen",
+  "path": "Immobilien > Mietwohnungen",
+  "real_estate": true
+ },
+ {
+  "id": "403",
+  "name": "Neubauprojekte",
+  "path": "Immobilien > Neubauprojekte",
+  "real_estate": true
+ },
+ {
+  "id": "238",
+  "name": "Umzug & Transport",
+  "path": "Immobilien > Umzug & Transport",
+  "real_estate": true
+ },
+ {
+  "id": "198",
+  "name": "Weitere Immobilien",
+  "path": "Immobilien > Weitere Immobilien",
+  "real_estate": true
+ },
+ {
+  "id": "80",
+  "name": "Haus & Garten",
+  "path": "Haus & Garten",
+  "real_estate": false
+ },
+ {
+  "id": "91",
+  "name": "Badezimmer",
+  "path": "Haus & Garten > Badezimmer",
+  "real_estate": false
+ },
+ {
+  "id": "93",
+  "name": "Büro",
+  "path": "Haus & Garten > Büro",
+  "real_estate": false
+ },
+ {
+  "id": "246",
+  "name": "Dekoration",
+  "path": "Haus & Garten > Dekoration",
+  "real_estate": false
+ },
+ {
+  "id": "239",
+  "name": "Dienstleistungen Haus & Garten",
+  "path": "Haus & Garten > Dienstleistungen Haus & Garten",
+  "real_estate": false
+ },
+ {
+  "id": "89",
+  "name": "Gartenzubehör & Pflanzen",
+  "path": "Haus & Garten > Gartenzubehör & Pflanzen",
+  "real_estate": false
+ },
+ {
+  "id": "90",
+  "name": "Heimtextilien",
+  "path": "Haus & Garten > Heimtextilien",
+  "real_estate": false
+ },
+ {
+  "id": "84",
+  "name": "Heimwerken",
+  "path": "Haus & Garten > Heimwerken",
+  "real_estate": false
+ },
+ {
+  "id": "86",
+  "name": "Küche & Esszimmer",
+  "path": "Haus & Garten > Küche & Esszimmer",
+  "real_estate": false
+ },
+ {
+  "id": "82",
+  "name": "Lampen & Licht",
+  "path": "Haus & Garten > Lampen & Licht",
+  "real_estate": false
+ },
+ {
+  "id": "81",
+  "name": "Schlafzimmer",
+  "path": "Haus & Garten > Schlafzimmer",
+  "real_estate": false
+ },
+ {
+  "id": "88",
+  "name": "Wohnzimmer",
+  "path": "Haus & Garten > Wohnzimmer",
+  "real_estate": false
+ },
+ {
+  "id": "87",
+  "name": "Weiteres Haus & Garten",
+  "path": "Haus & Garten > Weiteres Haus & Garten",
+  "real_estate": false
+ },
+ {
+  "id": "153",
+  "name": "Mode & Beauty",
+  "path": "Mode & Beauty",
+  "real_estate": false
+ },
+ {
+  "id": "224",
+  "name": "Beauty & Gesundheit",
+  "path": "Mode & Beauty > Beauty & Gesundheit",
+  "real_estate": false
+ },
+ {
+  "id": "154",
+  "name": "Damenbekleidung",
+  "path": "Mode & Beauty > Damenbekleidung",
+  "real_estate": false
+ },
+ {
+  "id": "159",
+  "name": "Damenschuhe",
+  "path": "Mode & Beauty > Damenschuhe",
+  "real_estate": false
+ },
+ {
+  "id": "160",
+  "name": "Herrenbekleidung",
+  "path": "Mode & Beauty > Herrenbekleidung",
+  "real_estate": false
+ },
+ {
+  "id": "158",
+  "name": "Herrenschuhe",
+  "path": "Mode & Beauty > Herrenschuhe",
+  "real_estate": false
+ },
+ {
+  "id": "156",
+  "name": "Taschen & Accessoires",
+  "path": "Mode & Beauty > Taschen & Accessoires",
+  "real_estate": false
+ },
+ {
+  "id": "157",
+  "name": "Uhren & Schmuck",
+  "path": "Mode & Beauty > Uhren & Schmuck",
+  "real_estate": false
+ },
+ {
+  "id": "155",
+  "name": "Weiteres Mode & Beauty",
+  "path": "Mode & Beauty > Weiteres Mode & Beauty",
+  "real_estate": false
+ },
+ {
+  "id": "161",
+  "name": "Elektronik",
+  "path": "Elektronik",
+  "real_estate": false
+ },
+ {
+  "id": "172",
+  "name": "Audio & Hifi",
+  "path": "Elektronik > Audio & Hifi",
+  "real_estate": false
+ },
+ {
+  "id": "226",
+  "name": "Dienstleistungen Elektronik",
+  "path": "Elektronik > Dienstleistungen Elektronik",
+  "real_estate": false
+ },
+ {
+  "id": "245",
+  "name": "Foto",
+  "path": "Elektronik > Foto",
+  "real_estate": false
+ },
+ {
+  "id": "173",
+  "name": "Handy & Telefon",
+  "path": "Elektronik > Handy & Telefon",
+  "real_estate": false
+ },
+ {
+  "id": "176",
+  "name": "Haushaltsgeräte",
+  "path": "Elektronik > Haushaltsgeräte",
+  "real_estate": false
+ },
+ {
+  "id": "279",
+  "name": "Konsolen",
+  "path": "Elektronik > Konsolen",
+  "real_estate": false
+ },
+ {
+  "id": "278",
+  "name": "Notebooks",
+  "path": "Elektronik > Notebooks",
+  "real_estate": false
+ },
+ {
+  "id": "228",
+  "name": "PCs",
+  "path": "Elektronik > PCs",
+  "real_estate": false
+ },
+ {
+  "id": "225",
+  "name": "PC-Zubehör & Software",
+  "path": "Elektronik > PC-Zubehör & Software",
+  "real_estate": false
+ },
+ {
+  "id": "285",
+  "name": "Tablets & Reader",
+  "path": "Elektronik > Tablets & Reader",
+  "real_estate": false
+ },
+ {
+  "id": "175",
+  "name": "TV & Video",
+  "path": "Elektronik > TV & Video",
+  "real_estate": false
+ },
+ {
+  "id": "227",
+  "name": "Videospiele",
+  "path": "Elektronik > Videospiele",
+  "real_estate": false
+ },
+ {
+  "id": "405",
+  "name": "Wearables",
+  "path": "Elektronik > Wearables",
+  "real_estate": false
+ },
+ {
+  "id": "406",
+  "name": "Wearables Zubehör",
+  "path": "Elektronik > Wearables Zubehör",
+  "real_estate": false
+ },
+ {
+  "id": "168",
+  "name": "Weitere Elektronik",
+  "path": "Elektronik > Weitere Elektronik",
+  "real_estate": false
+ },
+ {
+  "id": "130",
+  "name": "Haustiere",
+  "path": "Haustiere",
+  "real_estate": false
+ },
+ {
+  "id": "138",
+  "name": "Fische",
+  "path": "Haustiere > Fische",
+  "real_estate": false
+ },
+ {
+  "id": "134",
+  "name": "Hunde",
+  "path": "Haustiere > Hunde",
+  "real_estate": false
+ },
+ {
+  "id": "136",
+  "name": "Katzen",
+  "path": "Haustiere > Katzen",
+  "real_estate": false
+ },
+ {
+  "id": "132",
+  "name": "Kleintiere",
+  "path": "Haustiere > Kleintiere",
+  "real_estate": false
+ },
+ {
+  "id": "135",
+  "name": "Nutztiere",
+  "path": "Haustiere > Nutztiere",
+  "real_estate": false
+ },
+ {
+  "id": "139",
+  "name": "Pferde",
+  "path": "Haustiere > Pferde",
+  "real_estate": false
+ },
+ {
+  "id": "133",
+  "name": "Tierbetreuung & Training",
+  "path": "Haustiere > Tierbetreuung & Training",
+  "real_estate": false
+ },
+ {
+  "id": "283",
+  "name": "Vermisste Tiere",
+  "path": "Haustiere > Vermisste Tiere",
+  "real_estate": false
+ },
+ {
+  "id": "243",
+  "name": "Vögel",
+  "path": "Haustiere > Vögel",
+  "real_estate": false
+ },
+ {
+  "id": "313",
+  "name": "Zubehör",
+  "path": "Haustiere > Zubehör",
+  "real_estate": false
+ },
+ {
+  "id": "17",
+  "name": "Familie, Kind & Baby",
+  "path": "Familie, Kind & Baby",
+  "real_estate": false
+ },
+ {
+  "id": "236",
+  "name": "Altenpflege",
+  "path": "Familie, Kind & Baby > Altenpflege",
+  "real_estate": false
+ },
+ {
+  "id": "22",
+  "name": "Baby- & Kinderkleidung",
+  "path": "Familie, Kind & Baby > Baby- & Kinderkleidung",
+  "real_estate": false
+ },
+ {
+  "id": "19",
+  "name": "Baby- & Kinderschuhe",
+  "path": "Familie, Kind & Baby > Baby- & Kinderschuhe",
+  "real_estate": false
+ },
+ {
+  "id": "258",
+  "name": "Baby-Ausstattung",
+  "path": "Familie, Kind & Baby > Baby-Ausstattung",
+  "real_estate": false
+ },
+ {
+  "id": "21",
+  "name": "Babyschalen & Kindersitze",
+  "path": "Familie, Kind & Baby > Babyschalen & Kindersitze",
+  "real_estate": false
+ },
+ {
+  "id": "237",
+  "name": "Babysitter/-in & Kinderbetreuung",
+  "path": "Familie, Kind & Baby > Babysitter/-in & Kinderbetreuung",
+  "real_estate": false
+ },
+ {
+  "id": "25",
+  "name": "Kinderwagen & Buggys",
+  "path": "Familie, Kind & Baby > Kinderwagen & Buggys",
+  "real_estate": false
+ },
+ {
+  "id": "20",
+  "name": "Kinderzimmermöbel",
+  "path": "Familie, Kind & Baby > Kinderzimmermöbel",
+  "real_estate": false
+ },
+ {
+  "id": "23",
+  "name": "Spielzeug",
+  "path": "Familie, Kind & Baby > Spielzeug",
+  "real_estate": false
+ },
+ {
+  "id": "18",
+  "name": "Weiteres Familie, Kind & Baby",
+  "path": "Familie, Kind & Baby > Weiteres Familie, Kind & Baby",
+  "real_estate": false
+ },
+ {
+  "id": "102",
+  "name": "Jobs",
+  "path": "Jobs",
+  "real_estate": false
+ },
+ {
+  "id": "118",
+  "name": "Ausbildung",
+  "path": "Jobs > Ausbildung",
+  "real_estate": false
+ },
+ {
+  "id": "111",
+  "name": "Bau, Handwerk & Produktion",
+  "path": "Jobs > Bau, Handwerk & Produktion",
+  "real_estate": false
+ },
+ {
+  "id": "114",
+  "name": "Büroarbeit & Verwaltung",
+  "path": "Jobs > Büroarbeit & Verwaltung",
+  "real_estate": false
+ },
+ {
+  "id": "110",
+  "name": "Gastronomie & Tourismus",
+  "path": "Jobs > Gastronomie & Tourismus",
+  "real_estate": false
+ },
+ {
+  "id": "105",
+  "name": "Kundenservice & Call Center",
+  "path": "Jobs > Kundenservice & Call Center",
+  "real_estate": false
+ },
+ {
+  "id": "107",
+  "name": "Mini- & Nebenjobs",
+  "path": "Jobs > Mini- & Nebenjobs",
+  "real_estate": false
+ },
+ {
+  "id": "125",
+  "name": "Praktika",
+  "path": "Jobs > Praktika",
+  "real_estate": false
+ },
+ {
+  "id": "123",
+  "name": "Sozialer Sektor & Pflege",
+  "path": "Jobs > Sozialer Sektor & Pflege",
+  "real_estate": false
+ },
+ {
+  "id": "247",
+  "name": "Transport, Logistik & Verkehr",
+  "path": "Jobs > Transport, Logistik & Verkehr",
+  "real_estate": false
+ },
+ {
+  "id": "117",
+  "name": "Vertrieb, Einkauf & Verkauf",
+  "path": "Jobs > Vertrieb, Einkauf & Verkauf",
+  "real_estate": false
+ },
+ {
+  "id": "109",
+  "name": "Weitere Jobs",
+  "path": "Jobs > Weitere Jobs",
+  "real_estate": false
+ },
+ {
+  "id": "185",
+  "name": "Freizeit, Hobby & Nachbarschaft",
+  "path": "Freizeit, Hobby & Nachbarschaft",
+  "real_estate": false
+ },
+ {
+  "id": "232",
+  "name": "Esoterik & Spirituelles",
+  "path": "Freizeit, Hobby & Nachbarschaft > Esoterik & Spirituelles",
+  "real_estate": false
+ },
+ {
+  "id": "248",
+  "name": "Essen & Trinken",
+  "path": "Freizeit, Hobby & Nachbarschaft > Essen & Trinken",
+  "real_estate": false
+ },
+ {
+  "id": "187",
+  "name": "Freizeitaktivitäten",
+  "path": "Freizeit, Hobby & Nachbarschaft > Freizeitaktivitäten",
+  "real_estate": false
+ },
+ {
+  "id": "282",
+  "name": "Handarbeit, Basteln & Kunsthandwerk",
+  "path": "Freizeit, Hobby & Nachbarschaft > Handarbeit, Basteln & Kunsthandwerk",
+  "real_estate": false
+ },
+ {
+  "id": "240",
+  "name": "Kunst & Antiquitäten",
+  "path": "Freizeit, Hobby & Nachbarschaft > Kunst & Antiquitäten",
+  "real_estate": false
+ },
+ {
+  "id": "191",
+  "name": "Künstler/-in & Musiker/-in",
+  "path": "Freizeit, Hobby & Nachbarschaft > Künstler/-in & Musiker/-in",
+  "real_estate": false
+ },
+ {
+  "id": "249",
+  "name": "Modellbau",
+  "path": "Freizeit, Hobby & Nachbarschaft > Modellbau",
+  "real_estate": false
+ },
+ {
+  "id": "233",
+  "name": "Reise & Eventservices",
+  "path": "Freizeit, Hobby & Nachbarschaft > Reise & Eventservices",
+  "real_estate": false
+ },
+ {
+  "id": "234",
+  "name": "Sammeln",
+  "path": "Freizeit, Hobby & Nachbarschaft > Sammeln",
+  "real_estate": false
+ },
+ {
+  "id": "230",
+  "name": "Sport & Camping",
+  "path": "Freizeit, Hobby & Nachbarschaft > Sport & Camping",
+  "real_estate": false
+ },
+ {
+  "id": "250",
+  "name": "Trödel",
+  "path": "Freizeit, Hobby & Nachbarschaft > Trödel",
+  "real_estate": false
+ },
+ {
+  "id": "189",
+  "name": "Verloren & Gefunden",
+  "path": "Freizeit, Hobby & Nachbarschaft > Verloren & Gefunden",
+  "real_estate": false
+ },
+ {
+  "id": "242",
+  "name": "Weiteres Freizeit, Hobby & Nachbarschaft",
+  "path": "Freizeit, Hobby & Nachbarschaft > Weiteres Freizeit, Hobby & Nachbarschaft",
+  "real_estate": false
+ },
+ {
+  "id": "73",
+  "name": "Musik, Filme & Bücher",
+  "path": "Musik, Filme & Bücher",
+  "real_estate": false
+ },
+ {
+  "id": "76",
+  "name": "Bücher & Zeitschriften",
+  "path": "Musik, Filme & Bücher > Bücher & Zeitschriften",
+  "real_estate": false
+ },
+ {
+  "id": "281",
+  "name": "Büro & Schreibwaren",
+  "path": "Musik, Filme & Bücher > Büro & Schreibwaren",
+  "real_estate": false
+ },
+ {
+  "id": "284",
+  "name": "Comics",
+  "path": "Musik, Filme & Bücher > Comics",
+  "real_estate": false
+ },
+ {
+  "id": "77",
+  "name": "Fachbücher, Schule & Studium",
+  "path": "Musik, Filme & Bücher > Fachbücher, Schule & Studium",
+  "real_estate": false
+ },
+ {
+  "id": "79",
+  "name": "Film & DVD",
+  "path": "Musik, Filme & Bücher > Film & DVD",
+  "real_estate": false
+ },
+ {
+  "id": "78",
+  "name": "Musik & CDs",
+  "path": "Musik, Filme & Bücher > Musik & CDs",
+  "real_estate": false
+ },
+ {
+  "id": "74",
+  "name": "Musikinstrumente",
+  "path": "Musik, Filme & Bücher > Musikinstrumente",
+  "real_estate": false
+ },
+ {
+  "id": "75",
+  "name": "Weitere Musik, Filme & Bücher",
+  "path": "Musik, Filme & Bücher > Weitere Musik, Filme & Bücher",
+  "real_estate": false
+ },
+ {
+  "id": "231",
+  "name": "Eintrittskarten & Tickets",
+  "path": "Eintrittskarten & Tickets",
+  "real_estate": false
+ },
+ {
+  "id": "286",
+  "name": "Bahn & ÖPNV",
+  "path": "Eintrittskarten & Tickets > Bahn & ÖPNV",
+  "real_estate": false
+ },
+ {
+  "id": "254",
+  "name": "Comedy & Kabarett",
+  "path": "Eintrittskarten & Tickets > Comedy & Kabarett",
+  "real_estate": false
+ },
+ {
+  "id": "287",
+  "name": "Gutscheine",
+  "path": "Eintrittskarten & Tickets > Gutscheine",
+  "real_estate": false
+ },
+ {
+  "id": "252",
+  "name": "Kinder",
+  "path": "Eintrittskarten & Tickets > Kinder",
+  "real_estate": false
+ },
+ {
+  "id": "255",
+  "name": "Konzerte",
+  "path": "Eintrittskarten & Tickets > Konzerte",
+  "real_estate": false
+ },
+ {
+  "id": "257",
+  "name": "Sport",
+  "path": "Eintrittskarten & Tickets > Sport",
+  "real_estate": false
+ },
+ {
+  "id": "251",
+  "name": "Theater & Musical",
+  "path": "Eintrittskarten & Tickets > Theater & Musical",
+  "real_estate": false
+ },
+ {
+  "id": "256",
+  "name": "Weitere Eintrittskarten & Tickets",
+  "path": "Eintrittskarten & Tickets > Weitere Eintrittskarten & Tickets",
+  "real_estate": false
+ },
+ {
+  "id": "297",
+  "name": "Dienstleistungen",
+  "path": "Dienstleistungen",
+  "real_estate": false
+ },
+ {
+  "id": "288",
+  "name": "Altenpflege",
+  "path": "Dienstleistungen > Altenpflege",
+  "real_estate": false
+ },
+ {
+  "id": "289",
+  "name": "Auto, Rad & Boot",
+  "path": "Dienstleistungen > Auto, Rad & Boot",
+  "real_estate": false
+ },
+ {
+  "id": "290",
+  "name": "Babysitter/-in & Kinderbetreuung",
+  "path": "Dienstleistungen > Babysitter/-in & Kinderbetreuung",
+  "real_estate": false
+ },
+ {
+  "id": "293",
+  "name": "Elektronik",
+  "path": "Dienstleistungen > Elektronik",
+  "real_estate": false
+ },
+ {
+  "id": "291",
+  "name": "Haus & Garten",
+  "path": "Dienstleistungen > Haus & Garten",
+  "real_estate": false
+ },
+ {
+  "id": "292",
+  "name": "Künstler/-in & Musiker/-in",
+  "path": "Dienstleistungen > Künstler/-in & Musiker/-in",
+  "real_estate": false
+ },
+ {
+  "id": "294",
+  "name": "Reise & Event",
+  "path": "Dienstleistungen > Reise & Event",
+  "real_estate": false
+ },
+ {
+  "id": "295",
+  "name": "Tierbetreuung & Training",
+  "path": "Dienstleistungen > Tierbetreuung & Training",
+  "real_estate": false
+ },
+ {
+  "id": "296",
+  "name": "Umzug & Transport",
+  "path": "Dienstleistungen > Umzug & Transport",
+  "real_estate": false
+ },
+ {
+  "id": "298",
+  "name": "Weitere Dienstleistungen",
+  "path": "Dienstleistungen > Weitere Dienstleistungen",
+  "real_estate": false
+ },
+ {
+  "id": "272",
+  "name": "Verschenken & Tauschen",
+  "path": "Verschenken & Tauschen",
+  "real_estate": false
+ },
+ {
+  "id": "273",
+  "name": "Tauschen",
+  "path": "Verschenken & Tauschen > Tauschen",
+  "real_estate": false
+ },
+ {
+  "id": "274",
+  "name": "Verleihen",
+  "path": "Verschenken & Tauschen > Verleihen",
+  "real_estate": false
+ },
+ {
+  "id": "192",
+  "name": "Verschenken",
+  "path": "Verschenken & Tauschen > Verschenken",
+  "real_estate": false
+ },
+ {
+  "id": "235",
+  "name": "Unterricht & Kurse",
+  "path": "Unterricht & Kurse",
+  "real_estate": false
+ },
+ {
+  "id": "269",
+  "name": "Beauty & Gesundheit",
+  "path": "Unterricht & Kurse > Beauty & Gesundheit",
+  "real_estate": false
+ },
+ {
+  "id": "260",
+  "name": "Computerkurse",
+  "path": "Unterricht & Kurse > Computerkurse",
+  "real_estate": false
+ },
+ {
+  "id": "265",
+  "name": "Esoterik & Spirituelles",
+  "path": "Unterricht & Kurse > Esoterik & Spirituelles",
+  "real_estate": false
+ },
+ {
+  "id": "263",
+  "name": "Kochen & Backen",
+  "path": "Unterricht & Kurse > Kochen & Backen",
+  "real_estate": false
+ },
+ {
+  "id": "264",
+  "name": "Kunst & Gestaltung",
+  "path": "Unterricht & Kurse > Kunst & Gestaltung",
+  "real_estate": false
+ },
+ {
+  "id": "262",
+  "name": "Musik & Gesang",
+  "path": "Unterricht & Kurse > Musik & Gesang",
+  "real_estate": false
+ },
+ {
+  "id": "268",
+  "name": "Nachhilfe",
+  "path": "Unterricht & Kurse > Nachhilfe",
+  "real_estate": false
+ },
+ {
+  "id": "261",
+  "name": "Sportkurse",
+  "path": "Unterricht & Kurse > Sportkurse",
+  "real_estate": false
+ },
+ {
+  "id": "271",
+  "name": "Sprachkurse",
+  "path": "Unterricht & Kurse > Sprachkurse",
+  "real_estate": false
+ },
+ {
+  "id": "267",
+  "name": "Tanzkurse",
+  "path": "Unterricht & Kurse > Tanzkurse",
+  "real_estate": false
+ },
+ {
+  "id": "266",
+  "name": "Weiterbildung",
+  "path": "Unterricht & Kurse > Weiterbildung",
+  "real_estate": false
+ },
+ {
+  "id": "270",
+  "name": "Weitere Unterricht & Kurse ",
+  "path": "Unterricht & Kurse > Weitere Unterricht & Kurse ",
+  "real_estate": false
+ },
+ {
+  "id": "400",
+  "name": "Nachbarschaftshilfe",
+  "path": "Nachbarschaftshilfe",
+  "real_estate": false
+ },
+ {
+  "id": "401",
+  "name": "Nachbarschaftshilfe",
+  "path": "Nachbarschaftshilfe > Nachbarschaftshilfe",
+  "real_estate": false
+ }
+]
