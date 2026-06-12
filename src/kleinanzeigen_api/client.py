@@ -39,6 +39,8 @@ from . import categories as _catalog
 API_HOST = "https://api.kleinanzeigen.de"
 WEB_HOST = "https://www.kleinanzeigen.de"
 ADS_NS = "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ads"
+LOCATIONS_NS = "{http://www.ebayclassifiedsgroup.com/schema/location/v1}locations"
+SEARCH_META_NS = "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ads-search-options"
 
 # --- baked-in app-distribution values (override via env / constructor) -------
 APP_VERSION = "2026.23.1"
@@ -184,9 +186,51 @@ class KleinanzeigenAPI:
                 time.sleep(1.2 * attempt)
         raise RuntimeError(f"GET failed after {self.max_retries} tries: {url} ({last})")
 
-    # -- location resolution (lightweight website endpoint) ----------------- #
+    # -- location resolution ------------------------------------------------ #
     def resolve_location(self, query: str) -> list:
-        """Return a list of (location_id, label) candidates for a place name."""
+        """Look up a place name and return a list of (location_id, label) matches.
+
+        Asks the app's location endpoint first. If that call fails for any reason
+        (e.g. the credentials stopped working), it quietly tries the website
+        instead, so this keeps working either way.
+        """
+        try:
+            cands = self._resolve_location_api(query)
+            if cands:
+                return cands
+        except Exception:  # API down or response unreadable -> try the website
+            pass
+        return self._resolve_location_web(query)
+
+    def _resolve_location_api(self, query: str) -> list:
+        """Look up a place name using the app's /api/locations.json endpoint."""
+        data = self._get(f"{API_HOST}/api/locations.json", params={"q": query}).json()
+        root = _val(data.get(LOCATIONS_NS, {}))
+        nodes = root.get("location") if isinstance(root, dict) else None
+        if isinstance(nodes, dict):  # one match comes back as a single item, not a list
+            nodes = [nodes]
+        out: list = []
+        self._flatten_locations(nodes, out)
+        return out
+
+    def _flatten_locations(self, nodes, out: list) -> None:
+        """Turn the nested location tree into a flat list of (id, label) pairs.
+
+        A place can contain sub-places (Berlin -> Charlottenburg -> a postcode).
+        We add each place before its sub-places, so bigger areas like "Berlin"
+        end up first and best_location() picks them over smaller ones.
+        """
+        for n in nodes or []:
+            lid = _val(n.get("id"))
+            label = _val(n.get("localized-name")) or _val(n.get("id-name"))
+            if lid is not None and label:
+                out.append((str(lid), label))
+            kids = n.get("location")
+            if kids:
+                self._flatten_locations(kids if isinstance(kids, list) else [kids], out)
+
+    def _resolve_location_web(self, query: str) -> list:
+        """Look up a place name on the website (used only as a backup)."""
         r = self._s.get(f"{WEB_HOST}/s-ort-empfehlungen.json",
                         params={"query": query},
                         headers={"X-Requested-With": "XMLHttpRequest",
@@ -205,8 +249,11 @@ class KleinanzeigenAPI:
         if not cands:
             return None
         ql = query.lower()
+        # Match the name exactly, ignoring the region part that may follow it,
+        # e.g. "Berlin - Berlin" (website) or "Charlottenburg (Berlin)" (app).
         for lid, label in cands:
-            if label.split(" - ")[0].lower() == ql:
+            head = label.split(" - ")[0].split(" (")[0].strip().lower()
+            if head == ql:
                 return lid, label
         for lid, label in cands:
             if "-" not in label and label.lower().startswith(ql):
@@ -378,6 +425,42 @@ class KleinanzeigenAPI:
         """
         kwargs.setdefault("category_id", CATEGORY_WOHNUNG_MIETEN)
         return self.search(location, **kwargs)
+
+    def search_metadata(self, category=None, *, category_id=None) -> dict:
+        """List the filters you can search a category with.
+
+        Returns a dict like ``param_name -> {label, type, search_param, values}``.
+        ``values`` only appears for filters with a fixed set of choices (e.g.
+        priceType, adType) and holds the allowed ``(value, label)`` pairs. This
+        is the same filter info the app uses to draw its filter screen.
+
+        Give a category as a name or id via ``category``, or an id via
+        ``category_id``; one of them is required.
+        """
+        if category is not None and category_id is not None:
+            raise ValueError("pass either `category` or `category_id`, not both")
+        cat = _catalog.resolve_category(category if category is not None else category_id)
+        if cat is None:
+            raise ValueError("search_metadata needs a category (name or id)")
+        data = self._get(f"{API_HOST}/api/ads/search-metadata/{cat}.json").json()
+        opts = _val(data.get(SEARCH_META_NS, {}))
+        out: dict = {}
+        for name, spec in (opts.items() if isinstance(opts, dict) else []):
+            if not isinstance(spec, dict):
+                continue
+            entry = {
+                "label": spec.get("localized-label"),
+                "type": spec.get("type"),
+                "search_param": spec.get("search-param"),
+            }
+            sv = spec.get("supported-value")
+            if sv:
+                if isinstance(sv, dict):  # one choice comes back alone, not in a list
+                    sv = [sv]
+                entry["values"] = [(v.get("value"), v.get("localized-label"))
+                                   for v in sv if isinstance(v, dict)]
+            out[name] = entry
+        return out
 
     def get_ad(self, ad_id: str) -> Listing:
         """Fetch a single ad by id."""

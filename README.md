@@ -119,9 +119,11 @@ kleinanzeigen-api --categories fahrr      # filter
 min_price, max_price, min_rooms, max_rooms, min_size, max_size, ad_type,
 sort_type, pages, size)`
 
-- **location** — city/region name (resolved automatically) or a numeric id. An
-  unresolvable name raises `ValueError` (no silent nationwide fallback); pass
-  `location=None` to deliberately search all of Germany.
+- **location** — city/region name (resolved automatically via the app's
+  `/api/locations.json` endpoint, with the website autocomplete as a fallback)
+  or a numeric id. An unresolvable name raises `ValueError` (no silent
+  nationwide fallback); pass `location=None` to deliberately search all of
+  Germany.
 - **category** — name **or** id; `None` (default) searches **all categories**.
   `category_id` is the raw-id alias (pass only one).
 - **q** — server-side keyword. **exclude** — string or list; drops results whose
@@ -134,6 +136,19 @@ sort_type, pages, size)`
 
 `search_rentals(location, **kwargs)` is the same thing with `category_id=203`
 ("Mietwohnungen", apartments to rent) pre-set.
+
+## Other helpers
+
+- `resolve_location(query)` / `best_location(query)` — turn a place name into
+  `(location_id, label)` candidates / the single best guess, using the app's
+  `/api/locations.json` endpoint (website autocomplete as fallback).
+- `search_metadata(category=None, *, category_id=None)` — the valid search
+  filters for a category, as `{param: {label, type, search_param, values}}`
+  (`values` lists allowed `(value, label)` pairs for ENUM params like
+  `priceType`/`adType`). Mirrors the metadata the app uses to build its filter
+  UI.
+- `get_ad(ad_id)` — fetch a single ad. `fetch_categories()` — refresh the
+  bundled category catalog from the live API.
 
 ## How the transport works
 
