@@ -37,17 +37,33 @@ from curl_cffi import requests as creq
 from . import categories as _catalog
 
 API_HOST = "https://api.kleinanzeigen.de"
+# chat and a few other things live on a separate "gateway" host
+GATEWAY_HOST = "https://gateway.kleinanzeigen.de"
 WEB_HOST = "https://www.kleinanzeigen.de"
 ADS_NS = "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ads"
 LOCATIONS_NS = "{http://www.ebayclassifiedsgroup.com/schema/location/v1}locations"
 SEARCH_META_NS = "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ads-search-options"
 
 # --- baked-in app-distribution values (override via env / constructor) -------
-APP_VERSION = "2026.23.1"
+APP_VERSION = "2026.25.0"
 DEFAULT_BASIC_USER = "android"
 DEFAULT_BASIC_PW = "TaR60pEttY"
 
 CATEGORY_WOHNUNG_MIETEN = 203
+
+# the list of fields we ask for on ad lists. Without it the API only returns a
+# few basic fields, so we send the same long list the app uses to get everything
+# (images, labels, ad status, etc.).
+ADS_FIELD_SELECTOR = (
+    "id,title,description,displayoptions,start-date-time,category.id,"
+    "category.localized_name,ad-address.state,ad-address.zip-code,"
+    "ad-address.availability-radius-in-km,price,pictures,link,features-active,"
+    "search-distance,negotiation-enabled,attributes,medias,medias.media,"
+    "medias.media.title,medias.media.media-link,buy-now,placeholder-image-present,"
+    "labels,price-reduction,company,embedded,poster-type,seller-account-type,"
+    "ad-status,ad-address.latitude,ad-address.longitude,locations,user-id,"
+    "repost-url,ad-type"
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -111,6 +127,47 @@ class Listing:
         return asdict(self)
 
 
+@dataclass
+class Conversation:
+    """One chat thread from your inbox."""
+
+    id: str
+    ad_id: str
+    ad_title: str
+    role: str            # "BUYER" or "SELLER"
+    counterparty: str    # name of the other person
+    unread: bool
+    unread_count: int
+    last_received: str
+    preview: str
+    raw: dict = field(default_factory=dict)  # the full API object, just in case
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def _parse_conversation(c: dict) -> "Conversation":
+    role = (c.get("role") or "").upper()
+    # the counterparty is the *other* side relative to your role
+    other = c.get("sellerName") if role == "BUYER" else c.get("buyerName")
+    return Conversation(
+        id=str(c.get("id", "")),
+        ad_id=str(c.get("adId", "")),
+        ad_title=c.get("adTitle") or "",
+        role=role,
+        counterparty=other or c.get("sellerName") or c.get("buyerName") or "",
+        unread=bool(c.get("unread")),
+        unread_count=int(c.get("unreadMessagesCount") or 0),
+        last_received=c.get("receivedDate") or "",
+        preview=c.get("textShortTrimmed") or "",
+        raw=c,
+    )
+
+
+def _message_text(m: dict) -> str:
+    return m.get("text") or m.get("textShort") or m.get("title") or ""
+
+
 class KleinanzeigenAPI:
     """Client for the Kleinanzeigen mobile JSON API.
 
@@ -124,11 +181,16 @@ class KleinanzeigenAPI:
         basic_user / basic_pw: override the built-in Basic-auth login. If these
             are not set, the KLEINANZEIGEN_BASIC_USER / KLEINANZEIGEN_BASIC_PW
             environment variables are used, then the built-in defaults.
+        authenticator: an auth.Authenticator if you want the logged-in features
+            (chat, your own ads, posting). Leave it out for plain search.
+        user_id: your numeric account id. Optional - we look it up from your
+            login when it's first needed.
     """
 
     def __init__(self, rate_limit: float = 1.5, app_version: str = APP_VERSION,
                  timeout: int = 25, max_retries: int = 3,
-                 basic_user: Optional[str] = None, basic_pw: Optional[str] = None):
+                 basic_user: Optional[str] = None, basic_pw: Optional[str] = None,
+                 authenticator=None, user_id: Optional[str] = None):
         self.rate_limit = rate_limit
         self.app_version = app_version
         self.timeout = timeout
@@ -140,18 +202,45 @@ class KleinanzeigenAPI:
         pw = basic_pw or os.getenv("KLEINANZEIGEN_BASIC_PW") or DEFAULT_BASIC_PW
         self._auth = "Basic " + base64.b64encode(f"{user}:{pw}".encode()).decode()
         self._s = creq.Session(impersonate="chrome")
+        # optional logged-in user (for chat / own ads / posting). authenticator is
+        # an auth.Authenticator; user_id is the numeric account id (resolved lazily
+        # from the login email if not given).
+        self._auth_provider = authenticator
+        self._user_id = str(user_id) if user_id is not None else None
 
     # -- transport ---------------------------------------------------------- #
-    def _headers(self) -> dict:
-        return {
+    def _headers(self, authed: bool = False, gateway: bool = False) -> dict:
+        h = {
             "X-EBAYK-APP": self._xapp,
             "X-ECG-USER-AGENT": f"ebayk-android-app-{self.app_version}",
             "X-ECG-USER-VERSION": self.app_version,
             "User-Agent": f"Kleinanzeigen/{self.app_version} (Android 13; Pixel 7)",
             "Accept": "application/json",
             "Accept-Language": "de-DE",
-            "Authorization": self._auth,
         }
+        if gateway:
+            # the gateway host wants a normal "Bearer <token>" header
+            if authed:
+                h["Authorization"] = "Bearer " + self._require_auth().access_token()
+        else:
+            # main API: Basic auth, and for logged-in calls two extra user headers.
+            h["Authorization"] = self._auth
+            if authed:
+                auth = self._require_auth()
+                token = auth.access_token()
+                h["X-EBAYK-USERID-TOKEN"] = token
+                if auth.email:
+                    h["X-ECG-Authorization-User"] = f"email={auth.email},access={token}"
+        return h
+
+    def _require_auth(self):
+        if self._auth_provider is None:
+            raise RuntimeError(
+                "This call needs a logged-in user. Create an "
+                "auth.Authenticator(), log in once, and pass it as "
+                "KleinanzeigenAPI(authenticator=...)."
+            )
+        return self._auth_provider
 
     def _throttle(self):
         wait = self.rate_limit - (time.time() - self._last)
@@ -185,6 +274,45 @@ class KleinanzeigenAPI:
                 self._last = time.time()
                 time.sleep(1.2 * attempt)
         raise RuntimeError(f"GET failed after {self.max_retries} tries: {url} ({last})")
+
+    def _request(self, method: str, url: str, *, params: Optional[dict] = None,
+                 json: Optional[dict] = None, data: Optional[str] = None,
+                 content_type: Optional[str] = None, authed: bool = True,
+                 gateway: bool = False) -> creq.Response:
+        """Send a POST/PUT/DELETE. Used by the logged-in chat and ad calls.
+
+        Retries on the same temporary errors as _get. On other errors it raises
+        with the response body so you can see what went wrong (a 403 usually
+        means the login token is missing or expired). Use gateway=True for the
+        gateway host, and data + content_type when you need to send a raw body
+        like the post-ad XML
+        """
+        last = None
+        for attempt in range(1, self.max_retries + 1):
+            self._throttle()
+            try:
+                headers = self._headers(authed=authed, gateway=gateway)
+                if content_type:
+                    headers["Content-Type"] = content_type
+                body = data.encode("utf-8") if isinstance(data, str) else data
+                r = self._s.request(method, url, params=params, json=json, data=body,
+                                    headers=headers, timeout=self.timeout)
+                self._last = time.time()
+                if r.status_code in (200, 201, 204):
+                    return r
+                if r.status_code in (429, 500, 503):
+                    time.sleep(1.5 * attempt + random.uniform(0, 1.5))
+                    continue
+                raise RuntimeError(
+                    f"{method} {url} -> {r.status_code}: {r.text[:300]}"
+                )
+            except RuntimeError:
+                raise
+            except Exception as e:  # noqa: BLE001 - retry on any network error
+                last = e
+                self._last = time.time()
+                time.sleep(1.2 * attempt)
+        raise RuntimeError(f"{method} failed after {self.max_retries} tries: {url} ({last})")
 
     # -- location resolution ------------------------------------------------ #
     def resolve_location(self, query: str) -> list:
@@ -339,10 +467,18 @@ class KleinanzeigenAPI:
             params["sortType"] = sort_type
 
         data = self._get(f"{API_HOST}/api/ads.json", params=params).json()
+        return self._parse_ads_block(data)
+
+    def _parse_ads_block(self, data: dict) -> tuple:
+        """Turn an ads-list response into (total_found, [Listing]).
+
+        Search, your own ads and the watchlist all come back in the same shape,
+        so they all use this.
+        """
         block = data.get(ADS_NS, {}).get("value", {})
         total = int(_num(block.get("paging", {}).get("numFound")) or 0)
         raw = block.get("ad", [])
-        if isinstance(raw, dict):  # capi returns a single object when 1 result
+        if isinstance(raw, dict):  # a single result comes back as one object, not a list
             raw = [raw]
         return total, [self._parse_ad(a) for a in raw]
 
@@ -499,3 +635,304 @@ class KleinanzeigenAPI:
         """
         data = self._get(f"{API_HOST}/api/categories.json").json()
         return [_catalog.Category(**c) for c in _catalog.flatten_api_categories(data)]
+
+    # -- logged-in: who am I ----------------------------------------------- #
+    @property
+    def user_id(self) -> str:
+        """numeric account id. The chat and own-ad URLs need it.
+
+        We look it up once from your email and remember it. You can also pass
+        user_id= to the constructor to skip this lookup.
+        """
+        if self._user_id:
+            return self._user_id
+        auth = self._require_auth()
+        email = auth.email
+        if not email:
+            raise RuntimeError(
+                "Could not work out the account id: no email in the login. "
+                "Pass user_id=... to KleinanzeigenAPI instead."
+            )
+        # this needs a logged-in request, so use _request with authed=True
+        r = self._request("GET", f"{API_HOST}/api/users/{email}/profile.json",
+                          authed=True)
+        body = r.json()
+        uid = (body.get("data") or {}).get("id") or body.get("id")
+        if not uid:
+            raise RuntimeError(f"Unexpected profile.json shape: {str(body)[:200]}")
+        self._user_id = str(uid)
+        return self._user_id
+
+    # -- logged-in: chat --------------------------------------------------- #
+    def conversations(self, page: int = 0, size: int = 100) -> list:
+        """List your chat threads, newest first. Returns Conversation objects."""
+        uid = self.user_id
+        r = self._request(
+            "GET",
+            f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations",
+            params={"page": page, "size": size}, authed=True, gateway=True)
+        body = r.json()
+        items = body.get("conversations") or body.get("data") or []
+        if isinstance(items, dict):
+            items = items.get("conversations") or items.get("items") or []
+        return [_parse_conversation(c) for c in items if isinstance(c, dict)]
+
+    def conversation(self, conversation_id: str) -> dict:
+        """Open one thread and return the full chat object with its messages.
+
+        This is a PUT, not a GET - that's just how the API works here (opening a
+        thread also marks it as loaded). The messages are under the "messages"
+        key. See messages() for a simpler view.
+        """
+        uid = self.user_id
+        r = self._request(
+            "PUT",
+            f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/{conversation_id}",
+            params={"contentWarnings": "true"}, authed=True, gateway=True)
+        return r.json()
+
+    def messages(self, conversation_id: str) -> list:
+        """Return a thread's messages as simple dicts, oldest first.
+
+        Each one looks like {"text", "direction", "date", "raw"}, where
+        direction is "sent" or "received".
+        """
+        conv = self.conversation(conversation_id)
+        raw = conv.get("messages") or (conv.get("data") or {}).get("messages") or []
+        out = []
+        for m in raw if isinstance(raw, list) else []:
+            if not isinstance(m, dict):
+                continue
+            bound = (m.get("boundness") or m.get("direction") or "").upper()
+            direction = ("received" if "IN" in bound else
+                         "sent" if "OUT" in bound else bound.lower())
+            out.append({"text": _message_text(m), "direction": direction,
+                        "date": m.get("receivedDate") or "", "raw": m})
+        return out
+
+    def reply(self, conversation_id: str, text: str) -> None:
+        """Send a text reply in an existing conversation."""
+        uid = self.user_id
+        self._request(
+            "POST",
+            f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/{conversation_id}",
+            params={"warnPhoneNumber": "false", "warnEmail": "false",
+                    "warnBankDetails": "false"},
+            json={"message": text}, authed=True, gateway=True)
+
+    def mark_read(self, conversation_ids) -> None:
+        """Mark one or more conversations as read."""
+        uid = self.user_id
+        if isinstance(conversation_ids, str):
+            conversation_ids = [conversation_ids]
+        ids = ",".join(str(c) for c in conversation_ids)
+        self._request(
+            "POST",
+            f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/read",
+            params={"ids": ids}, authed=True, gateway=True)
+
+    def start_conversation(self, ad_id: str, contact_name: str) -> dict:
+        """Start a new chat on an ad (the first message to a seller).
+
+        Returns the new conversation. Use its id with reply() to keep chatting.
+        """
+        uid = self.user_id
+        r = self._request(
+            "POST",
+            f"{API_HOST}/api/users/{uid}/create-conversation/{ad_id}",
+            params={"contactName": contact_name}, authed=True)
+        return r.json()
+
+    # -- logged-in: your own ads ------------------------------------------- #
+    def my_ads(self, page: int = 0, size: int = 25, sort_type: Optional[str] = None,
+               q: Optional[str] = None) -> list:
+        """List your own ads (both live and paused) as Listing objects.
+
+        Pass q to filter your ads by a keyword.
+        """
+        uid = self.user_id
+        params = {"_in": ADS_FIELD_SELECTOR, "page": page, "size": size}
+        if sort_type:
+            params["sortType"] = sort_type
+        if q:
+            params["q"] = q
+        data = self._request("GET", f"{API_HOST}/api/users/{uid}/ads.json",
+                            params=params, authed=True).json()
+        return self._parse_ads_block(data)[1]
+
+    def get_my_ad(self, ad_id: str) -> Listing:
+        """Fetch one of your own ads (works for paused ads too)."""
+        uid = self.user_id
+        data = self._request("GET", f"{API_HOST}/api/users/{uid}/ads/{ad_id}.json",
+                            authed=True).json()
+        ad = data.get("{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad", data)
+        ad = ad.get("value", ad) if isinstance(ad, dict) else ad
+        return self._parse_ad(ad)
+
+    def pause_ad(self, ad_id: str) -> None:
+        """Take one of your ads offline (reversible with activate_ad)."""
+        uid = self.user_id
+        self._request("PUT", f"{API_HOST}/api/users/{uid}/ads/paused/{ad_id}.json",
+                      authed=True)
+
+    def activate_ad(self, ad_id: str) -> None:
+        """Bring a paused ad back online."""
+        uid = self.user_id
+        self._request("PUT", f"{API_HOST}/api/users/{uid}/ads/active/{ad_id}.json",
+                      authed=True)
+
+    def delete_ad(self, ad_id: str) -> None:
+        """Permanently delete one of your ads."""
+        uid = self.user_id
+        self._request("DELETE", f"{API_HOST}/api/users/{uid}/ads/{ad_id}",
+                      authed=True)
+
+    def extend_ad(self, ad_id: str) -> None:
+        """Renew/extend one of your ads (bumps its expiry)."""
+        uid = self.user_id
+        self._request("POST", f"{API_HOST}/api/users/{uid}/ads/extend/{ad_id}",
+                      authed=True)
+
+    def extend_status(self, ad_ids) -> list:
+        """Return the renew/extend eligibility for one or more of your ads."""
+        uid = self.user_id
+        if isinstance(ad_ids, str):
+            ad_ids = [ad_ids]
+        ids = ",".join(str(a) for a in ad_ids)
+        return self._request("GET", f"{API_HOST}/api/users/{uid}/ads/extend/status",
+                             params={"adids": ids}, authed=True).json()
+
+    def watchlist(self, page: int = 0, size: int = 25) -> list:
+        """List the ads you've saved to your watchlist. Returns a list of Listing."""
+        uid = self.user_id
+        data = self._request(
+            "GET", f"{API_HOST}/api/users/{uid}/watchlist.json",
+            params={"_in": ADS_FIELD_SELECTOR, "page": page, "size": size},
+            authed=True).json()
+        return self._parse_ads_block(data)[1]
+
+    # -- logged-in: post a new ad ------------------------------------------ #
+    def post_ad(self, *, title: str, description: str, category_id,
+                location_id, price=None, price_type: str = "FIXED",
+                poster_type: str = "PRIVATE", ad_type: str = "OFFERED",
+                contact_name: Optional[str] = None, email: Optional[str] = None,
+                phone: Optional[str] = None, attributes: Optional[dict] = None,
+                picture_urls: Optional[list] = None,
+                latitude=None, longitude=None) -> str:
+        """Post a new ad and return its id.
+
+        A few things the API is picky about:
+          - location_id has to be a real place (a city/postcode like "13467
+            Reinickendorf"), not a whole region like "Berlin", or it's rejected.
+          - email is required. We default it to your account email; without any
+            email the API fails with a 500.
+
+        price_type is "FIXED" (needs a price), "NEGOTIABLE" (price is what you're
+        asking), or "FREE" (zu verschenken, no price). attributes is a
+        {name: value} dict of category-specific fields. picture_urls is a list of
+        already-uploaded image URLs.
+        """
+        uid = self.user_id
+        if email is None:
+            email = getattr(self._auth_provider, "email", None)
+        xml = self._build_ad_xml(
+            title=title, description=description, category_id=category_id,
+            location_id=location_id, price=price, price_type=price_type,
+            poster_type=poster_type, ad_type=ad_type,
+            contact_name=contact_name or "", email=email or "", phone=phone,
+            attributes=attributes or {}, picture_urls=picture_urls or [],
+            latitude=latitude, longitude=longitude)
+        r = self._request("POST", f"{API_HOST}/api/users/{uid}/ads.json",
+                          data=xml, content_type="application/xml", authed=True)
+        # the new id comes back either in a Location header or in the ad body
+        loc = r.headers.get("Location") or r.headers.get("location") or ""
+        if loc:
+            tail = loc.rstrip("/").split("/")[-1].split(".")[0]
+            if tail.isdigit():
+                return tail
+        try:
+            body = r.json()
+            ad = body.get("{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad", body)
+            ad = ad.get("value", ad) if isinstance(ad, dict) else ad
+            return str(_val(ad.get("id")) or "")
+        except Exception:
+            return ""
+
+    # XML namespaces the ad body has to declare.
+    _AD_NAMESPACES = {
+        "types": "types/v1", "cat": "category/v1", "ad": "ad/v1",
+        "loc": "location/v1", "attr": "attribute/v1", "pic": "picture/v1",
+        "user": "user/v1", "rate": "rate/v1", "reply": "reply/v1",
+        "feed": "feed/v1", "shipping": "shipping/v1", "document": "document/v1",
+        "payment": "payment/v1", "medias": "media/v1", "ps": "productsafety/v1",
+    }
+    # our easy price-type names -> the value the API actually wants.
+    _PRICE_TYPE_MAP = {
+        "FIXED": "SPECIFIED_AMOUNT", "SPECIFIED_AMOUNT": "SPECIFIED_AMOUNT",
+        "NEGOTIABLE": "PLEASE_CONTACT", "VB": "PLEASE_CONTACT",
+        "PLEASE_CONTACT": "PLEASE_CONTACT",
+        "FREE": "FREE", "GIVE_AWAY": "FREE",
+    }
+
+    @classmethod
+    def _build_ad_xml(cls, *, title, description, category_id, location_id,
+                      price, price_type, poster_type, ad_type, contact_name,
+                      email, phone, attributes, picture_urls, latitude,
+                      longitude) -> str:
+        """Build the XML body for a new ad. The API takes XML here, not JSON."""
+        from xml.sax.saxutils import escape, quoteattr
+
+        def esc(v):
+            # escape text so a stray < or & in a title can't break the XML
+            return escape("" if v is None else str(v))
+
+        ns = " ".join(
+            f'xmlns:{p}="http://www.ebayclassifiedsgroup.com/schema/{s}"'
+            for p, s in cls._AD_NAMESPACES.items())
+        pt = cls._PRICE_TYPE_MAP.get(str(price_type).upper(), "SPECIFIED_AMOUNT")
+
+        parts = [
+            "<?xml version='1.0' encoding='UTF-8' standalone='yes'?>",
+            f'<ad:ad {ns} locale="en_US" id="0">',
+            f"<ad:title>{esc(title)}</ad:title>",
+            f"<ad:description>{esc(description)}</ad:description>",
+        ]
+        if contact_name:
+            parts.append(f"<ad:contact-name>{esc(contact_name)}</ad:contact-name>")
+        if email:  # the server returns 500 without a contact email
+            parts.append(f"<ad:email>{esc(email)}</ad:email>")
+        if phone:
+            parts.append(f"<ad:phone>{esc(phone)}</ad:phone>")
+        parts.append(
+            f"<ad:poster-type><ad:value>{esc(poster_type)}</ad:value></ad:poster-type>")
+        parts.append(
+            f"<ad:ad-type><ad:value>{esc(ad_type)}</ad:value></ad:ad-type>")
+        parts.append(f'<cat:category id={quoteattr(str(category_id))}/>')
+        parts.append(
+            f'<loc:locations><loc:location id={quoteattr(str(location_id))}/>'
+            f'</loc:locations>')
+        addr = []
+        if latitude is not None:
+            addr.append(f"<types:latitude>{esc(latitude)}</types:latitude>")
+        if longitude is not None:
+            addr.append(f"<types:longitude>{esc(longitude)}</types:longitude>")
+        addr.append("<types:show-full-address>false</types:show-full-address>")
+        parts.append("<ad:ad-address>" + "".join(addr) + "</ad:ad-address>")
+        price_parts = [f"<types:price-type><types:value>{pt}</types:value>"
+                       "</types:price-type>"]
+        if pt != "FREE" and price is not None:
+            price_parts.append(f"<types:amount>{esc(price)}</types:amount>")
+        parts.append("<ad:price>" + "".join(price_parts) + "</ad:price>")
+        pics = "".join(
+            f'<pic:picture><pic:link rel="XXL" href={quoteattr(str(u))}/>'
+            f'</pic:picture>' for u in picture_urls)
+        parts.append(f"<pic:pictures>{pics}</pic:pictures>")
+        attr_xml = "".join(
+            f'<attr:attribute name={quoteattr(str(k))}>'
+            f"<attr:value>{esc(v)}</attr:value></attr:attribute>"
+            for k, v in attributes.items())
+        parts.append(f"<attr:attributes>{attr_xml}</attr:attributes>")
+        if str(ad_type).upper() == "OFFERED":
+            parts.append('<payment:buy-now selected="false"/>')
+        parts.append("</ad:ad>")
+        return "".join(parts)

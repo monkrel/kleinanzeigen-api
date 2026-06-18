@@ -10,13 +10,17 @@ for the legal notes and rate-limiting advice.
 """
 from __future__ import annotations
 
+from .auth import Authenticator, NotLoggedIn
 from .categories import Category, all_categories, find_categories, get_category
-from .client import KleinanzeigenAPI, Listing
+from .client import Conversation, KleinanzeigenAPI, Listing
 
 __version__ = "0.2.0"
 __all__ = [
     "KleinanzeigenAPI",
     "Listing",
+    "Conversation",
+    "Authenticator",
+    "NotLoggedIn",
     "Category",
     "find_categories",
     "all_categories",

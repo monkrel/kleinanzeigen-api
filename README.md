@@ -10,6 +10,13 @@ the same mobile JSON API (`api.kleinanzeigen.de`) the official Android app uses.
 - Returns **structured data the website never exposes**: GPS coordinates, exact
   result counts, typed attributes (Wohnfläche, Zimmer, Nebenkosten, …), all
   image sizes, ISO timestamps and price type.
+- **Log in (optional)** to read and answer your chats, manage your own ads
+  (pause / activate / delete / renew), and even post new ones.
+
+
+> If this saved you some time, please **★ star the repo** — it's the main signal
+> that tells me it's worth maintaining. (Lots of people clone it, almost nobody
+> stars it, and it's a little lonely up there. :( ))
 
 > [!NOTE]
 > This is for **Germany's kleinanzeigen.de only**, and is **not affiliated with, authorized, or endorsed
@@ -85,6 +92,97 @@ kleinanzeigen-api Oranienburg --category 203 --max-price 900 \
 `--exclude` is repeatable or comma-separated. You can pass a numeric location id
 instead of a name (`kleinanzeigen-api 3331` == Berlin). Run
 `kleinanzeigen-api --help` for all flags.
+
+## Logged-in features (optional) — chat, your ads, posting
+
+Everything above works without an account. If you log in, you can also read and
+answer your **chats**, manage your **own ads**, see your **watchlist**, and
+**post** a new ad. It's the same login the app uses, so it's a one-time sign-in.
+
+> [!WARNING]
+> Automating a logged-in account is against Kleinanzeigen's Terms of Service and
+> can get the account banned. Keep this personal and low-volume.
+
+### Log in once
+
+```bash
+kleinanzeigen-api login
+```
+
+It prints a link — sign in, then paste back the URL the browser lands on (it has
+a `?code=` in it). The token is saved to `~/.kleinanzeigen_api/token.json` and
+refreshed automatically, so you only do this once.
+
+**No browser on the machine (server / CI)?** You don't need one there:
+
+- log in once on any machine that has a browser, then copy `token.json` over (or
+  point `KLEINANZEIGEN_TOKEN_DIR` at it), or
+- set `KLEINANZEIGEN_REFRESH_TOKEN` to a refresh token you already have (useful
+  when it comes from a CI secret).
+
+### From the library
+
+```python
+from kleinanzeigen_api import KleinanzeigenAPI, Authenticator
+
+auth = Authenticator()
+if not auth.logged_in:
+    auth.login_interactive()              # one-time browser sign-in
+
+api = KleinanzeigenAPI(authenticator=auth)
+
+# --- chat ---
+for c in api.conversations():
+    print(c.counterparty, "-", c.ad_title)
+
+for m in api.messages("<conversation_id>"):
+    print(m["direction"], m["text"])       # "sent" / "received"
+
+api.reply("<conversation_id>", "Hallo, ist das noch verfügbar?")
+
+# --- your own ads ---
+mine = api.my_ads()
+api.pause_ad("<ad_id>")
+api.activate_ad("<ad_id>")
+api.delete_ad("<ad_id>")
+
+saved = api.watchlist()
+
+# --- post a new ad (returns the new id) ---
+new_id = api.post_ad(
+    title="Sofa zu verschenken",
+    description="Gut erhalten, Abholung in Berlin.",
+    category_id=192,                       # "Verschenken"
+    location_id="3455",                    # 13467 Reinickendorf
+    price_type="FREE",                     # or "FIXED" with price=..., or "NEGOTIABLE"
+)
+```
+
+### From the CLI
+
+```bash
+kleinanzeigen-api login
+kleinanzeigen-api chats
+kleinanzeigen-api messages <conversation_id>
+kleinanzeigen-api reply <conversation_id> "Hallo, ist das noch da?"
+
+kleinanzeigen-api my-ads
+kleinanzeigen-api watchlist
+kleinanzeigen-api pause <ad_id>
+kleinanzeigen-api activate <ad_id>
+kleinanzeigen-api delete <ad_id>
+kleinanzeigen-api extend <ad_id>
+
+kleinanzeigen-api post --title "Sofa zu verschenken" \
+    --description "Gut erhalten, Abholung in Berlin." \
+    --category 192 --location "13467 Reinickendorf" --price-type FREE
+```
+
+Two things to know when posting:
+
+- the **location has to be a real place** (a city/postcode like
+  `13467 Reinickendorf`), not a broad region like `Berlin`, or the API rejects it;
+- a **contact email is required** — by default we use your account email.
 
 ## Categories — you never need to memorize ids
 
@@ -196,6 +294,12 @@ cd kleinanzeigen-api
 pip install -e ".[dev]"
 pytest -q          # offline parsing tests, no network
 ```
+
+## ⭐ Like it?
+
+If this helped you, a **star** means a lot — it's the only way I can tell the
+tool is actually useful to people. Takes two seconds and keeps me motivated to
+maintain it. Thank you! 🙏
 
 ## License
 

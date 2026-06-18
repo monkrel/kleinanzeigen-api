@@ -8,6 +8,173 @@ import sys
 from .client import KleinanzeigenAPI, Listing
 
 
+def _authed_client(rate: float = 1.5) -> KleinanzeigenAPI:
+    """Build a client with the stored login, or exit telling the user to log in."""
+    from .auth import Authenticator
+    auth = Authenticator()
+    if not auth.logged_in:
+        print("Not logged in. Run:  kleinanzeigen-api login", file=sys.stderr)
+        raise SystemExit(2)
+    return KleinanzeigenAPI(rate_limit=rate, authenticator=auth)
+
+
+def _cmd_login(argv) -> int:
+    from .auth import Authenticator
+    Authenticator().login_interactive()
+    return 0
+
+
+def _cmd_chats(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api chats",
+                                 description="List your chat threads.")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    convs = api.conversations()
+    if a.json:
+        print(json.dumps([c.to_dict() for c in convs], ensure_ascii=False, indent=2))
+    else:
+        for c in convs:
+            mark = "●" if c.unread else " "
+            print(f"{mark} [{c.id}] {c.counterparty} — {c.ad_title[:50]}")
+            if c.preview:
+                print(f"      {c.preview[:80]}")
+        print(f"{len(convs)} conversations", file=sys.stderr)
+    return 0
+
+
+def _cmd_reply(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api reply",
+                                 description="Reply in a chat thread.")
+    ap.add_argument("conversation_id")
+    ap.add_argument("message")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    api.reply(a.conversation_id, a.message)
+    print("sent", file=sys.stderr)
+    return 0
+
+
+def _cmd_messages(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api messages",
+                                 description="Show messages in a chat thread.")
+    ap.add_argument("conversation_id")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    msgs = api.messages(a.conversation_id)
+    if a.json:
+        print(json.dumps(msgs, ensure_ascii=False, indent=2))
+    else:
+        for m in msgs:
+            who = "→ you" if m["direction"] == "received" else "you →"
+            print(f"{who} [{m['date']}]: {m['text']}")
+    return 0
+
+
+def _cmd_my_ads(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api my-ads",
+                                 description="List your own ads.")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    ads = api.my_ads()
+    if a.json:
+        print(json.dumps([l.to_dict() for l in ads], ensure_ascii=False, indent=2))
+    else:
+        _print_table(ads)
+        print(f"{len(ads)} ads", file=sys.stderr)
+    return 0
+
+
+def _cmd_watchlist(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api watchlist",
+                                 description="List ads on your watchlist.")
+    ap.add_argument("--json", action="store_true")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    ads = api.watchlist()
+    if a.json:
+        print(json.dumps([l.to_dict() for l in ads], ensure_ascii=False, indent=2))
+    else:
+        _print_table(ads)
+        print(f"{len(ads)} saved ads", file=sys.stderr)
+    return 0
+
+
+def _cmd_post(argv) -> int:
+    ap = argparse.ArgumentParser(prog="kleinanzeigen-api post",
+                                 description="Post a new ad.")
+    ap.add_argument("--title", required=True)
+    ap.add_argument("--description", required=True)
+    ap.add_argument("--category", required=True, help="category id")
+    ap.add_argument("--location", required=True,
+                    help="specific postable location (name/postcode or numeric id)")
+    ap.add_argument("--price", type=int, help="price in euro (omit for FREE)")
+    ap.add_argument("--price-type", default="FIXED",
+                    choices=["FIXED", "NEGOTIABLE", "FREE"])
+    ap.add_argument("--contact-name")
+    ap.add_argument("--email", help="contact email (defaults to your account email)")
+    a = ap.parse_args(argv)
+    api = _authed_client()
+    loc = a.location if str(a.location).isdigit() else None
+    if loc is None:
+        best = api.best_location(a.location)
+        if not best:
+            print(f"could not resolve location {a.location!r}", file=sys.stderr)
+            return 2
+        loc = best[0]
+    new_id = api.post_ad(title=a.title, description=a.description,
+                         category_id=a.category, location_id=loc, price=a.price,
+                         price_type=a.price_type, contact_name=a.contact_name,
+                         email=a.email)
+    print(new_id or "(posted, id unknown)")
+    print(f"posted ad {new_id}", file=sys.stderr)
+    return 0
+
+
+# pause / activate / delete / extend all take just an ad id, so they share this.
+def _ad_id_arg(argv, name):
+    ap = argparse.ArgumentParser(prog=f"kleinanzeigen-api {name}")
+    ap.add_argument("ad_id")
+    return ap.parse_args(argv).ad_id
+
+
+def _cmd_pause(argv) -> int:
+    ad_id = _ad_id_arg(argv, "pause")
+    _authed_client().pause_ad(ad_id)
+    print(f"paused {ad_id}", file=sys.stderr)
+    return 0
+
+
+def _cmd_activate(argv) -> int:
+    ad_id = _ad_id_arg(argv, "activate")
+    _authed_client().activate_ad(ad_id)
+    print(f"activated {ad_id}", file=sys.stderr)
+    return 0
+
+
+def _cmd_delete(argv) -> int:
+    ad_id = _ad_id_arg(argv, "delete")
+    _authed_client().delete_ad(ad_id)
+    print(f"deleted {ad_id}", file=sys.stderr)
+    return 0
+
+
+def _cmd_extend(argv) -> int:
+    ad_id = _ad_id_arg(argv, "extend")
+    _authed_client().extend_ad(ad_id)
+    print(f"extended {ad_id}", file=sys.stderr)
+    return 0
+
+
+_SUBCOMMANDS = {"login": _cmd_login, "chats": _cmd_chats, "reply": _cmd_reply,
+                "messages": _cmd_messages, "my-ads": _cmd_my_ads,
+                "watchlist": _cmd_watchlist, "post": _cmd_post,
+                "pause": _cmd_pause, "activate": _cmd_activate,
+                "delete": _cmd_delete, "extend": _cmd_extend}
+
+
 def _print_table(items: list) -> None:
     """Print the listings as a short text table."""
     for l in items:
@@ -34,6 +201,16 @@ def main(argv=None) -> int:
     Returns the process exit code (0 on success, 2 on a bad argument or an
     API error).
     """
+    args_list = list(sys.argv[1:] if argv is None else argv)
+    # if the first word is one of our logged-in commands (login, chats, post, …)
+    # run that; otherwise fall through to the normal search below.
+    if args_list and args_list[0] in _SUBCOMMANDS:
+        try:
+            return _SUBCOMMANDS[args_list[0]](args_list[1:])
+        except (RuntimeError, ValueError) as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+
     p = argparse.ArgumentParser(
         prog="kleinanzeigen-api",
         description="Unofficial search client for kleinanzeigen.de (Germany). "
