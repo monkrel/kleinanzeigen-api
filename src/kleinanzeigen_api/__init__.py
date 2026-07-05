@@ -14,7 +14,7 @@ from .auth import Authenticator, NotLoggedIn
 from .categories import Category, all_categories, find_categories, get_category
 from .client import Conversation, KleinanzeigenAPI, Listing
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "KleinanzeigenAPI",
     "Listing",
