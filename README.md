@@ -64,12 +64,73 @@ client-side). `q` is the server-side keyword.
 ### `Listing` fields
 
 ```
-id, title, description, price, price_type, url, city, zip_code,
-latitude, longitude, size_m2, rooms, posted, poster_type, images, attributes
+id, title, description, price, price_type, url, city, zip_code, latitude,
+longitude, size_m2, rooms, posted, poster_type, category_id, images, attributes
 ```
 
 `attributes` is a `{localized_label: value}` dict of everything the ad carries
 (`size_m2` and `rooms` are also surfaced as typed top-level fields).
+
+## Watch for new ads in near real time
+
+If you repeat the same search every few seconds, new ads still only show up
+after **~2 minutes**. That's not an index lag — Kleinanzeigen caches each
+search result for about 2 minutes on their side (the website and the app have
+the same behavior), so a repeated identical query keeps getting the same stale
+answer. For fast-moving stuff — especially *zu verschenken* (free) items —
+that's long enough to miss everything good.
+
+`iter_new_ads()` gets around it. The default mode polls the newest-first
+search but **changes the page size on every request**, so every query is
+technically new and never hits their cache. New ads show up **~15–45 seconds
+after going live**, at just a few requests per minute:
+
+```python
+api = KleinanzeigenAPI()
+
+# endless generator; yields Listings as they appear
+for ad in api.iter_new_ads(price_type="FREE", location="Berlin", distance_km=25):
+    print(ad.posted, ad.city, ad.title, ad.url)
+```
+
+`category_id`, `q`, `location`/`distance_km`, `min_price` and `max_price` are
+handled by the server; `exclude`, `price_type` (`"FREE"` = zu verschenken),
+`poster_type` (`"PRIVATE"`/`"COMMERCIAL"`), `near=(lat, lon)` + `radius_km` and
+`match=callable(Listing) -> bool` are filtered on our side. Pass
+`backfill=True` to also get the current batch before going live.
+
+### Fast mode (seconds, but expensive)
+
+If ~30 seconds is still too slow there's `mode="frontier"`: ad ids count up
+site-wide and the single-ad endpoint has no cache, so fetching each new id as
+it appears sees ads **within seconds of posting**. The catch is the request
+volume — ads arrive at ~15–20 per second across all of Germany and every one
+must be fetched and filtered locally, so this needs `rate_limit≈0.05` to keep
+up (it warns on stderr when it falls behind). Use it for short, narrow watches
+you really want fast, not for hours on end — and mind the
+[etiquette notes](#legal--etiquette). Extras in this mode: `start_id=` to
+resume from a known id, and ids that 404 are retried for a few minutes
+(`retry_missing_for`) in case the ad was briefly held back by their checks.
+
+```python
+api = KleinanzeigenAPI(rate_limit=0.05)   # fast mode must keep up
+for ad in api.iter_new_ads(mode="frontier", price_type="FREE",
+                           near=(52.52, 13.405), radius_km=25):
+    print(ad.posted, ad.city, ad.title, ad.url)
+```
+
+From the CLI:
+
+```bash
+# Free items around Berlin, ~15-45s after posting, a few requests/minute
+kleinanzeigen-api watch --price-type free --location Berlin --distance 25
+
+# New bikes under 300 €, one JSON object per line (pipe into jq, a file, a bot…)
+kleinanzeigen-api watch --category "Fahrräder & Zubehör" --max-price 300 --json
+
+# Fast mode: within seconds, but ~20 requests/second — short sessions only
+kleinanzeigen-api watch --fast --price-type free --near 52.52,13.405 --radius 25
+```
 
 ## Quickstart (CLI)
 

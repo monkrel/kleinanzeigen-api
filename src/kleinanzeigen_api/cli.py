@@ -168,11 +168,108 @@ def _cmd_extend(argv) -> int:
     return 0
 
 
+def _cmd_watch(argv) -> int:
+    ap = argparse.ArgumentParser(
+        prog="kleinanzeigen-api watch",
+        description="Stream newly-posted ads as they appear. By default this "
+                    "polls search in a way that dodges the site's ~2-minute "
+                    "result cache, so new ads show up ~15-45s after posting at "
+                    "just a few requests per minute. With --fast it reads every "
+                    "new ad by id instead - that sees ads within seconds, but "
+                    "needs ~15-20 requests per SECOND to keep up, so save it "
+                    "for short, narrow watches.")
+    ap.add_argument("--fast", action="store_true",
+                    help="fast mode: fetch ads by id the moment they're posted "
+                         "(heavy on requests; needs a very low --rate)")
+    ap.add_argument("--category", metavar="NAME_OR_ID",
+                    help="restrict to a category by name or id")
+    ap.add_argument("--q", help="keyword(s) to match")
+    ap.add_argument("--exclude", action="append", metavar="TERM",
+                    help="drop ads containing TERM (repeatable or comma-separated)")
+    ap.add_argument("--min-price", type=float)
+    ap.add_argument("--max-price", type=float)
+    ap.add_argument("--price-type", choices=["free", "fixed", "negotiable"],
+                    help="free = zu verschenken")
+    ap.add_argument("--poster-type", choices=["private", "commercial"])
+    ap.add_argument("--location", metavar="NAME_OR_ID",
+                    help="place name or location id, e.g. Berlin (default mode only)")
+    ap.add_argument("--distance", type=float, metavar="KM",
+                    help="radius in km around --location")
+    ap.add_argument("--near", metavar="LAT,LON",
+                    help="center point for a radius filter, e.g. 52.52,13.405")
+    ap.add_argument("--radius", type=float, metavar="KM",
+                    help="max distance in km from --near (needs --near)")
+    ap.add_argument("--backfill", action="store_true",
+                    help="also emit the current batch of ads before going live")
+    ap.add_argument("--interval", type=float, default=15.0,
+                    help="seconds between checks once caught up (default 15)")
+    ap.add_argument("--rate", type=float, default=None,
+                    help="min seconds between requests (default: 1.5, or 0.05 "
+                         "with --fast)")
+    ap.add_argument("--json", action="store_true", help="emit one JSON object per line")
+    a = ap.parse_args(argv)
+
+    near = None
+    if a.near:
+        try:
+            lat, lon = (float(x) for x in a.near.split(","))
+            near = (lat, lon)
+        except ValueError:
+            print("--near must look like LAT,LON, e.g. 52.52,13.405", file=sys.stderr)
+            return 2
+    if a.radius is not None and near is None:
+        print("--radius needs --near", file=sys.stderr)
+        return 2
+    if a.distance is not None and not a.location:
+        print("--distance needs --location", file=sys.stderr)
+        return 2
+    if a.fast and a.location:
+        print("--location only works in the default mode; with --fast use "
+              "--near LAT,LON --radius KM instead", file=sys.stderr)
+        return 2
+
+    category_id = None
+    if a.category:
+        from .categories import resolve_category
+        category_id = resolve_category(a.category)
+
+    exclude = []
+    for chunk in (a.exclude or []):
+        exclude.extend(part.strip() for part in chunk.split(",") if part.strip())
+
+    price_type = {"free": "FREE", "fixed": "SPECIFIED_AMOUNT",
+                  "negotiable": "PLEASE_CONTACT"}.get(a.price_type)
+
+    mode = "frontier" if a.fast else "search"
+    rate = a.rate if a.rate is not None else (0.05 if a.fast else 1.5)
+    api = KleinanzeigenAPI(rate_limit=rate)
+    print("watching for new ads… (Ctrl-C to stop)", file=sys.stderr)
+    try:
+        for l in api.iter_new_ads(
+                mode=mode, backfill=a.backfill, category_id=category_id,
+                q=a.q, exclude=exclude or None, min_price=a.min_price,
+                max_price=a.max_price, price_type=price_type,
+                poster_type=(a.poster_type or "").upper() or None,
+                location=a.location, distance_km=a.distance,
+                near=near, radius_km=a.radius, poll_interval=a.interval):
+            if a.json:
+                print(json.dumps(l.to_dict(), ensure_ascii=False), flush=True)
+            else:
+                price = f"{int(l.price)} €" if l.price else (l.price_type or "—")
+                loc = f"{l.zip_code} {l.city}".strip() or "—"
+                print(f"[{l.id}] {price:>9} | {loc}  {l.title[:70]}", flush=True)
+                print(f"    {l.url}", flush=True)
+    except KeyboardInterrupt:
+        print("\nstopped", file=sys.stderr)
+    return 0
+
+
 _SUBCOMMANDS = {"login": _cmd_login, "chats": _cmd_chats, "reply": _cmd_reply,
                 "messages": _cmd_messages, "my-ads": _cmd_my_ads,
                 "watchlist": _cmd_watchlist, "post": _cmd_post,
                 "pause": _cmd_pause, "activate": _cmd_activate,
-                "delete": _cmd_delete, "extend": _cmd_extend}
+                "delete": _cmd_delete, "extend": _cmd_extend,
+                "watch": _cmd_watch}
 
 
 def _print_table(items: list) -> None:

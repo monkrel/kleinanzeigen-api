@@ -33,6 +33,7 @@ SAMPLE_AD = {
     ]},
     "start-date-time": {"value": "2026-06-01T10:00:00.000Z"},
     "poster-type": {"value": "PRIVATE"},
+    "category": {"id": "203", "localized-name": {"value": "Mietwohnungen"}},
 }
 
 
@@ -62,6 +63,7 @@ def test_parse_ad_core_fields():
     assert l.size_m2 == 34.0
     assert l.rooms == 2.0
     assert l.poster_type == "PRIVATE"
+    assert l.category_id == "203"
 
 
 def test_parse_ad_html_unescaped():

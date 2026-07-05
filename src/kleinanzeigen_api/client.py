@@ -27,6 +27,7 @@ import base64
 import html
 import os
 import random
+import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -102,6 +103,34 @@ def _excluded(listing, terms) -> bool:
     return any(t in hay for t in terms)
 
 
+def _posted_dt(posted: str):
+    """Parse a Listing.posted timestamp, or None if it won't parse.
+
+    The API sends offsets like "+0200" without a colon, which older Pythons
+    can't read, so we patch the colon in first.
+    """
+    import datetime
+    s = posted or ""
+    if len(s) > 5 and s[-5] in "+-" and ":" not in s[-5:]:
+        s = s[:-2] + ":" + s[-2:]
+    try:
+        return datetime.datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _haversine_km(lat1, lon1, lat2, lon2) -> float:
+    """Great-circle distance in km between two lat/lon points."""
+    import math
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = (math.sin(dphi / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2)
+    return 2 * r * math.asin(math.sqrt(a))
+
+
 @dataclass
 class Listing:
     """One ad returned by the API."""
@@ -120,6 +149,7 @@ class Listing:
     rooms: Optional[float]
     posted: str
     poster_type: str
+    category_id: str = ""
     images: list = field(default_factory=list)
     attributes: dict = field(default_factory=dict)  # localized-label -> value
 
@@ -371,6 +401,19 @@ class KleinanzeigenAPI:
                 out.append((lid, label))
         return out
 
+    def _location_to_id(self, location) -> str:
+        """Turn a place name (or an id that's already numeric) into a location id."""
+        if str(location).isdigit():
+            return str(location)
+        best = self.best_location(location)
+        if not best:
+            raise ValueError(
+                f"Could not resolve location {location!r}. Check the spelling "
+                f"with resolve_location(), pass a numeric location id, or use "
+                f"location=None to search all of Germany."
+            )
+        return best[0]
+
     def best_location(self, query: str) -> Optional[tuple]:
         """Return the single best (location_id, label) guess for a place name, or None."""
         cands = self.resolve_location(query)
@@ -436,6 +479,7 @@ class KleinanzeigenAPI:
             rooms=rooms,
             posted=_val(ad.get("start-date-time")) or "",
             poster_type=_val(ad.get("poster-type")) or "",
+            category_id=str(_val((ad.get("category") or {}).get("id")) or ""),
             images=images,
             attributes=attrs,
         )
@@ -513,19 +557,7 @@ class KleinanzeigenAPI:
         if sort_by_price and not sort_type:  # default to cheapest-first
             sort_type = "PRICE_ASCENDING"
         exclude_terms = _as_terms(exclude)
-        location_id = None
-        if location:
-            if str(location).isdigit():
-                location_id = str(location)
-            else:
-                best = self.best_location(location)
-                if not best:
-                    raise ValueError(
-                        f"Could not resolve location {location!r}. Check the spelling "
-                        f"with resolve_location(), pass a numeric location id, or use "
-                        f"location=None to search all of Germany."
-                    )
-                location_id = best[0]
+        location_id = self._location_to_id(location) if location else None
 
         results, seen = [], set()
         for page in range(pages):
@@ -598,13 +630,326 @@ class KleinanzeigenAPI:
             out[name] = entry
         return out
 
-    def get_ad(self, ad_id: str) -> Listing:
-        """Fetch a single ad by id."""
-        data = self._get(f"{API_HOST}/api/ads/{ad_id}.json").json()
-        # single-ad payload wraps under an "ad" key
+    def _fetch_ad_json(self, ad_id) -> Optional[dict]:
+        """GET one ad by id. Returns the parsed body, or None if it 404s.
+
+        Unlike _get, a 404 here is an expected, cheap "no such ad" (used heavily
+        by the frontier watcher to probe ids that don't exist yet), so we don't
+        burn the retry budget on it. Transient errors (429/5xx/network) still
+        retry the same way _get does.
+        """
+        last = None
+        for attempt in range(1, self.max_retries + 1):
+            self._throttle()
+            try:
+                r = self._s.get(f"{API_HOST}/api/ads/{ad_id}.json",
+                                headers=self._headers(), timeout=self.timeout)
+                self._last = time.time()
+                if r.status_code == 200:
+                    return r.json()
+                if r.status_code == 404:
+                    return None
+                if r.status_code in (401, 403):
+                    raise RuntimeError(
+                        f"{r.status_code} from API — Basic-auth credentials likely "
+                        f"rotated. Supply fresh ones via basic_user/basic_pw or the "
+                        f"KLEINANZEIGEN_BASIC_USER/KLEINANZEIGEN_BASIC_PW env vars."
+                    )
+                if r.status_code in (429, 500, 503):
+                    time.sleep(1.5 * attempt + random.uniform(0, 1.5))
+                    continue
+                r.raise_for_status()
+            except RuntimeError:
+                raise
+            except Exception as e:  # noqa: BLE001 - retry on any network error
+                last = e
+                self._last = time.time()
+                time.sleep(1.2 * attempt)
+        raise RuntimeError(f"GET ad {ad_id} failed after {self.max_retries} tries ({last})")
+
+    @staticmethod
+    def _unwrap_ad(data: dict) -> dict:
+        """Pull the ad object out of a single-ad payload (wrapped under an "ad" key)."""
         ad = data.get("{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad", data)
-        ad = ad.get("value", ad) if isinstance(ad, dict) else ad
-        return self._parse_ad(ad)
+        return ad.get("value", ad) if isinstance(ad, dict) else ad
+
+    def get_ad(self, ad_id: str) -> Listing:
+        """Fetch a single ad by id. Raises if the ad does not exist."""
+        data = self._fetch_ad_json(ad_id)
+        if data is None:
+            raise RuntimeError(f"ad {ad_id} not found (404)")
+        return self._parse_ad(self._unwrap_ad(data))
+
+    def try_get_ad(self, ad_id) -> Optional[Listing]:
+        """Fetch a single ad by id, or return None if it doesn't exist (404).
+
+        Unlike search, the single-ad endpoint has no result cache — a brand-new
+        ad is readable here within seconds of being posted, minutes before a
+        plain search would show it. iter_new_ads' frontier mode builds on this.
+        """
+        data = self._fetch_ad_json(ad_id)
+        return self._parse_ad(self._unwrap_ad(data)) if data is not None else None
+
+    # -- near-real-time watching (bypasses the lagged search index) --------- #
+    def _id_exists(self, ad_id) -> bool:
+        return self._fetch_ad_json(ad_id) is not None
+
+    def _beyond_max(self, ad_id) -> bool:
+        """True if ad_id looks past the live frontier, not just a deleted-ad gap.
+
+        ~6% of ids below the current maximum 404 because the ad was deleted or
+        removed by moderation, so a single 404 doesn't mean "not created yet". We
+        only trust it once a few spaced-out ids above it are all missing too.
+        """
+        return not (self._id_exists(ad_id) or self._id_exists(ad_id + 5)
+                    or self._id_exists(ad_id + 13))
+
+    def current_max_id(self, seed: Optional[int] = None) -> int:
+        """Return the id of the newest ad that currently exists, site-wide.
+
+        Ad ids are handed out in increasing order across all of Kleinanzeigen, so
+        the largest live id is the newest ad. We find it by walking up from a
+        known-live id (the newest search result, or ``seed``) until ids stop
+        existing, then binary-searching the boundary. Deleted-ad gaps are handled
+        by _beyond_max.
+        """
+        if seed is None:
+            _, newest = self.search_page(size=1, sort_type="DATE_DESCENDING")
+            if not newest:
+                raise RuntimeError(
+                    "search returned no ads, so there's no id to start from — "
+                    "pass a seed (any recent ad id) instead")
+            seed = int(newest[0].id)
+        lo = int(seed)
+        # exponential search upward for a point that is past the frontier
+        step, hi = 64, lo
+        while not self._beyond_max(hi + step):
+            hi += step
+            step *= 2
+            if step > 4_000_000:  # ~3 days of ads; safety valve
+                break
+        a, b = hi, hi + step  # a exists, b is beyond the frontier
+        while b - a > 1:
+            m = (a + b) // 2
+            if self._id_exists(m) or not self._beyond_max(m):
+                a = m
+            else:
+                b = m
+        return a
+
+    def _ad_matches(self, l: Listing, *, category_id, q_terms, exclude_terms,
+                    min_price, max_price, price_type, poster_type, near,
+                    radius_km, match) -> bool:
+        """Client-side filter for iter_new_ads (the by-id endpoint can't filter)."""
+        if category_id is not None and l.category_id != category_id:
+            return False
+        if price_type is not None:
+            lpt = (l.price_type or "").upper()
+            free = {"FREE", "GIVE_AWAY"}
+            if price_type in free:
+                if lpt not in free:
+                    return False
+            elif lpt != price_type:
+                return False
+        if min_price is not None and (l.price is None or l.price < min_price):
+            return False
+        if max_price is not None and (l.price is None or l.price > max_price):
+            return False
+        if poster_type is not None and (l.poster_type or "").upper() != poster_type:
+            return False
+        if q_terms:
+            hay = f"{l.title}\n{l.description}".lower()
+            if not all(t in hay for t in q_terms):
+                return False
+        if _excluded(l, exclude_terms):
+            return False
+        if near is not None and radius_km is not None:
+            if l.latitude is None or l.longitude is None:
+                return False
+            if _haversine_km(near[0], near[1], l.latitude, l.longitude) > radius_km:
+                return False
+        if match is not None and not match(l):
+            return False
+        return True
+
+    def iter_new_ads(self, *, mode: str = "search",
+                     location=None, distance_km=None,
+                     start_id: Optional[int] = None, backfill: bool = False,
+                     category_id=None, q=None, exclude=None, min_price=None,
+                     max_price=None, price_type=None, poster_type=None,
+                     near=None, radius_km=None, match=None,
+                     poll_interval: float = 15.0, max_per_poll: int = 1200,
+                     retry_missing_for: float = 300.0):
+        """Yield newly-posted ads as they appear, as an endless generator.
+
+        Two modes (see the README for the full story):
+          - "search" (default): polls newest-first search, dodging the site's
+            ~2-minute result cache by changing the page size every request.
+            New ads arrive ~15-45s after going live, a few requests/minute.
+          - "frontier": fetches every new ad by id the moment it exists.
+            Seconds-fast, but needs ~15-20 requests/second to keep up — short,
+            narrow watches only.
+
+        Filters are ANDed: category_id, q, exclude, min_price, max_price,
+        price_type ("FREE" = zu verschenken), poster_type, near=(lat, lon) +
+        radius_km, and match=callable(Listing) -> bool. location/distance_km
+        only work in search mode; use near/radius_km in frontier mode.
+
+        Only ads posted after you start watching are yielded; backfill=True
+        also emits the current batch first. Frontier-mode extras: start_id
+        resumes from a known id, max_per_poll caps one pass, and ids that 404
+        are re-checked for retry_missing_for seconds (some ads are held back
+        briefly before going public).
+        """
+        if mode not in ("search", "frontier"):
+            raise ValueError('mode must be "search" or "frontier"')
+        if mode == "search" and start_id is not None:
+            raise ValueError("start_id only makes sense in frontier mode")
+        if mode == "frontier" and (location is not None or distance_km is not None):
+            raise ValueError("location/distance_km only work in search mode — "
+                             "frontier mode filters by near=(lat, lon) + radius_km")
+
+        pt = price_type.upper() if price_type else None
+        poster = poster_type.upper() if poster_type else None
+        exclude_terms = _as_terms(exclude)
+
+        if mode == "search":
+            return self._iter_new_ads_search(
+                location=location, distance_km=distance_km,
+                category_id=category_id, q=q, exclude_terms=exclude_terms,
+                min_price=min_price, max_price=max_price, price_type=pt,
+                poster_type=poster, near=near, radius_km=radius_km,
+                match=match, backfill=backfill, poll_interval=poll_interval)
+        return self._iter_new_ads_frontier(
+            start_id=start_id, backfill=backfill, category_id=category_id,
+            q=q, exclude_terms=exclude_terms, min_price=min_price,
+            max_price=max_price, price_type=pt, poster_type=poster,
+            near=near, radius_km=radius_km, match=match,
+            poll_interval=poll_interval, max_per_poll=max_per_poll,
+            retry_missing_for=retry_missing_for)
+
+    def _iter_new_ads_search(self, *, location, distance_km, category_id, q,
+                             exclude_terms, min_price, max_price, price_type,
+                             poster_type, near, radius_km, match, backfill,
+                             poll_interval):
+        """The cheap watcher: poll newest-first search, dodge their cache."""
+        location_id = self._location_to_id(location) if location else None
+        # their cache is per exact query, so a different page size each time
+        # means we never get a cached (stale) answer
+        sizes = list(range(25, 101))
+        random.shuffle(sizes)
+        seen: dict = {}   # ids we already yielded (or saw on the first page)
+        watermark = None  # only ads posted after this count as new
+        first = True
+        n = 0
+        while True:
+            _, listings = self.search_page(
+                category_id=category_id, location_id=location_id,
+                distance_km=distance_km, min_price=min_price,
+                max_price=max_price, q=q, sort_type="DATE_DESCENDING",
+                size=sizes[n % len(sizes)])
+            n += 1
+            if first:
+                # later polls use bigger pages that reach further into the
+                # past; the cut-off stops old ads showing up as "new"
+                stamps = [d for l in listings if (d := _posted_dt(l.posted))]
+                if stamps:
+                    watermark = min(stamps) if backfill else max(stamps)
+            for l in reversed(listings):  # oldest first, like a live feed
+                if l.id in seen:
+                    continue
+                seen[l.id] = None
+                if len(seen) > 5000:  # keep the seen-set from growing forever
+                    seen.pop(next(iter(seen)))
+                if first and not backfill:
+                    continue  # first page is just our starting point
+                posted = _posted_dt(l.posted)
+                if watermark and posted and posted < watermark:
+                    continue  # older than where we started watching
+                # category/price/q were already filtered by the server here
+                if self._ad_matches(
+                        l, category_id=None, q_terms=[],
+                        exclude_terms=exclude_terms, min_price=None,
+                        max_price=None, price_type=price_type,
+                        poster_type=poster_type, near=near,
+                        radius_km=radius_km, match=match):
+                    yield l
+            first = False
+            time.sleep(max(0.0, poll_interval))
+
+    def _iter_new_ads_frontier(self, *, start_id, backfill, category_id, q,
+                               exclude_terms, min_price, max_price, price_type,
+                               poster_type, near, radius_km, match,
+                               poll_interval, max_per_poll, retry_missing_for):
+        """The fast watcher: walk the ad ids upward and fetch each new one."""
+        cat = str(category_id) if category_id is not None else None
+        q_terms = [t for t in (q or "").lower().split() if t]
+
+        def matches(l):
+            return self._ad_matches(
+                l, category_id=cat, q_terms=q_terms,
+                exclude_terms=exclude_terms, min_price=min_price,
+                max_price=max_price, price_type=price_type,
+                poster_type=poster_type, near=near, radius_km=radius_km,
+                match=match)
+
+        if start_id is not None:
+            last = int(start_id)
+        elif backfill:
+            _, newest = self.search_page(size=1, sort_type="DATE_DESCENDING")
+            last = (int(newest[0].id) - 1) if newest else self.current_max_id()
+        else:
+            last = self.current_max_id()
+
+        pending: dict = {}   # id -> when we first got a 404 for it
+        last_warned = 0.0
+        while True:
+            # give recent 404s another look — ads held back by moderation
+            # would be lost for good if we only tried each id once
+            for ad_id in sorted(pending):
+                if time.time() - pending[ad_id] > retry_missing_for:
+                    del pending[ad_id]
+                    continue
+                l = self.try_get_ad(ad_id)
+                if l is not None:
+                    del pending[ad_id]
+                    if matches(l):
+                        yield l
+
+            # walk forward from where we stopped last time
+            fetched = 0
+            at_frontier = False
+            while fetched < max_per_poll:
+                l = self.try_get_ad(last + 1)
+                fetched += 1
+                if l is None:
+                    # a 404 is either a gap (deleted / still being checked)
+                    # or the end of the ids so far — _beyond_max tells which
+                    if self._beyond_max(last + 1):
+                        at_frontier = True
+                        break
+                    pending[last + 1] = time.time()
+                    last += 1
+                    continue
+                last += 1
+                if matches(l):
+                    yield l
+
+            if at_frontier:
+                time.sleep(max(0.0, poll_interval))
+            elif fetched >= max_per_poll and time.time() - last_warned > 60:
+                print("iter_new_ads: falling behind (new ads come in faster "
+                      "than we fetch) — lower rate_limit or switch to the "
+                      "default search mode", file=sys.stderr)
+                last_warned = time.time()
+
+    def watch_new_ads(self, callback, **kwargs) -> None:
+        """Call ``callback(Listing)`` for every new matching ad, forever.
+
+        Convenience wrapper around iter_new_ads; takes the same keyword filters.
+        """
+        for listing in self.iter_new_ads(**kwargs):
+            callback(listing)
 
     # -- categories (offline, bundled catalog) ------------------------------ #
     @staticmethod
