@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 
-from .client import KleinanzeigenAPI, Listing
+from .client import KleinanzeigenAPI
 
 
 def _authed_client(rate: float = 1.5) -> KleinanzeigenAPI:
