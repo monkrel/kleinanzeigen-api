@@ -217,3 +217,61 @@ def test_authenticated_ad_and_chat_actions(monkeypatch):
     status = api.extend_status(["10"])
     assert status[0]["eligible"] is True
     assert len(requests_made) >= 9
+
+
+def test_get_and_request_retries_and_errors(monkeypatch):
+    import pytest
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    api = KleinanzeigenAPI(rate_limit=0)
+    api.max_retries = 2
+
+    class MockResp:
+        def __init__(self, status, text=""):
+            self.status_code = status
+            self.text = text
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError("HTTP Error")
+
+    # Test _get 401 raises clean RuntimeError
+    monkeypatch.setattr(api._s, "get", lambda *a, **k: MockResp(401, "unauthorized"))
+    with pytest.raises(RuntimeError) as excinfo:
+        api._get("http://test")
+    assert "Basic-auth credentials likely rotated" in str(excinfo.value)
+
+    # Test _get retries on 500 then succeeds on 200
+    responses = [MockResp(500), MockResp(200)]
+    monkeypatch.setattr(api._s, "get", lambda *a, **k: responses.pop(0))
+    r = api._get("http://test")
+    assert r.status_code == 200
+
+    # Test _request 429 retries and exhaust retries
+    monkeypatch.setattr(api._s, "request", lambda *a, **k: MockResp(429))
+    with pytest.raises(RuntimeError) as excinfo:
+        api._request("POST", "http://test", data="xml", authed=False)
+    assert "failed after 2 tries" in str(excinfo.value)
+
+
+def test_location_helpers(monkeypatch):
+    import pytest
+
+    api = KleinanzeigenAPI(rate_limit=0)
+
+    class MockWebResp:
+        def json(self):
+            return {"_3331": "Berlin", "_0": "All"}
+
+    monkeypatch.setattr(api._s, "get", lambda *a, **k: MockWebResp())
+    res = api._resolve_location_web("Ber")
+    assert res == [("3331", "Berlin")]
+
+    assert api._location_to_id(3331) == "3331"
+    assert api._location_to_id("3331") == "3331"
+
+    monkeypatch.setattr(api, "best_location", lambda q: None)
+    with pytest.raises(ValueError) as excinfo:
+        api._location_to_id("InvalidCityXYZ")
+    assert "Could not resolve location" in str(excinfo.value)
