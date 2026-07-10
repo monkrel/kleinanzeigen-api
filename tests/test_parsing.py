@@ -115,3 +115,44 @@ def test_to_dict_roundtrip():
     d = listing.to_dict()
     assert d["id"] == "123456"
     assert d["attributes"]["Zimmer"] == "2"
+
+
+def test_conversation_to_dict():
+    from kleinanzeigen_api import Conversation
+
+    c = Conversation(
+        id="c1",
+        ad_id="a1",
+        ad_title="Titel",
+        role="BUYER",
+        counterparty="Bob",
+        unread=False,
+        unread_count=0,
+        last_received="2026-07-10",
+        preview="Hi",
+    )
+    assert c.to_dict()["id"] == "c1"
+
+
+def test_get_ad_and_try_get_ad(monkeypatch):
+    api = KleinanzeigenAPI(rate_limit=0)
+
+    class FakeResp:
+        def __init__(self, status, data=None):
+            self.status_code = status
+            self._data = data or {}
+
+        def json(self):
+            return self._data
+
+    def fake_get(url, **kw):
+        if "999999" in url:
+            return FakeResp(404)
+        return FakeResp(200, SAMPLE_AD)
+
+    monkeypatch.setattr(api._s, "get", fake_get)
+    listing = api.get_ad("123456")
+    assert listing.id == "123456"
+    assert api.try_get_ad("999999") is None
+    assert api._id_exists("123456") is True
+    assert api._id_exists("999999") is False

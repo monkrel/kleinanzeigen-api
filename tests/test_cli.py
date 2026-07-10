@@ -219,3 +219,18 @@ def test_cli_subcommands(monkeypatch, capsys):
     assert cli.main(["activate", "123"]) == 0
     assert cli.main(["delete", "123"]) == 0
     assert cli.main(["extend", "123"]) == 0
+
+
+def test_main_module():
+    import runpy
+    import sys
+    import pytest
+
+    old_argv = sys.argv
+    sys.argv = ["kleinanzeigen-api", "--categories", "Autos"]
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            runpy.run_module("kleinanzeigen_api.__main__", run_name="__main__")
+        assert excinfo.value.code == 0
+    finally:
+        sys.argv = old_argv

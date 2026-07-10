@@ -179,3 +179,20 @@ def test_exchange_http_error_raises(tmp_path):
     with pytest.raises(RuntimeError) as excinfo:
         a._exchange({"grant_type": "authorization_code"})
     assert "Auth0 token endpoint returned 401" in str(excinfo.value)
+
+
+def test_login_interactive(tmp_path, monkeypatch):
+    a = Authenticator(token_path=str(tmp_path / "t.json"), session=FakeSession([]))
+
+    completed = []
+
+    def fake_complete(redirect, verifier, state):
+        completed.append(redirect)
+        a._t = {"refresh_token": "RT", "email": "interactive@x.de"}
+
+    monkeypatch.setattr(a, "complete_login", fake_complete)
+    monkeypatch.setattr("builtins.input", lambda prompt: " https://cb/?code=123 ")
+
+    a.login_interactive(open_browser=False)
+    assert completed == ["https://cb/?code=123"]
+    assert a.logged_in

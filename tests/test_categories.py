@@ -114,3 +114,52 @@ def test_flatten_matches_bundled_schema():
             "real_estate": True,
         }
     ]
+
+
+def test_category_to_dict():
+    c = Category("1", "Test", "Path > Test", real_estate=True)
+    d = c.to_dict()
+    assert d == {"id": "1", "name": "Test", "path": "Path > Test", "real_estate": True}
+
+
+def test_resolve_category_ambiguous_error():
+    with pytest.raises(ValueError) as excinfo:
+        resolve_category("a")  # matches many categories
+    assert "Ambiguous category" in str(excinfo.value) or "Did you mean:" in str(
+        excinfo.value
+    )
+
+
+def test_api_class_category_helpers(monkeypatch):
+    api = KleinanzeigenAPI()
+    assert len(api.categories()) >= 150
+    assert api.get_category(216).name == "Autos"
+    assert api.resolve_category("Autos") == "216"
+    assert any(c.name == "Autos" for c in api.find_categories("Autos"))
+
+    class FakeResponse:
+        def json(self):
+            return {
+                "{http://www.ebayclassifiedsgroup.com/schema/category/v1}categories": {
+                    "value": {
+                        "category": [
+                            {
+                                "id-name": {"value": "Root"},
+                                "localized-name": {"value": "Root"},
+                                "category": [
+                                    {
+                                        "id-name": {"value": "Sub"},
+                                        "localized-name": {"value": "Sub"},
+                                        "id": "10",
+                                        "category": [],
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+
+    monkeypatch.setattr(api, "_get", lambda url: FakeResponse())
+    fetched = api.fetch_categories()
+    assert fetched == [Category(id="10", name="Sub", path="Sub", real_estate=False)]
