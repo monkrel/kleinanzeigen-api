@@ -22,6 +22,7 @@ ways to do it:
 Note: automating a logged-in account is against Kleinanzeigen's terms of service
 and can get the account banned. Keep it personal and low-volume.
 """
+
 from __future__ import annotations
 
 import base64
@@ -98,8 +99,11 @@ class Authenticator:
     The refresh token in that file is basically a password, so keep it private
     """
 
-    def __init__(self, token_path: str = DEFAULT_TOKEN_PATH,
-                 session: Optional[creq.Session] = None):
+    def __init__(
+        self,
+        token_path: str = DEFAULT_TOKEN_PATH,
+        session: Optional[creq.Session] = None,
+    ):
         self.token_path = token_path
         self._s = session or creq.Session(impersonate="chrome")
         self._t: dict = self._load()
@@ -163,8 +167,12 @@ class Authenticator:
         }
         return f"{AUTHORIZE_URL}?{urlencode(params)}", verifier, state
 
-    def complete_login(self, redirect_url: str, code_verifier: str,
-                       expected_state: Optional[str] = None) -> None:
+    def complete_login(
+        self,
+        redirect_url: str,
+        code_verifier: str,
+        expected_state: Optional[str] = None,
+    ) -> None:
         """Finish login from the URL the browser landed on after sign-in."""
         qs = parse_qs(urlparse(redirect_url.strip()).query)
         if "error" in qs:
@@ -180,13 +188,15 @@ class Authenticator:
             )
         if expected_state and (qs.get("state") or [None])[0] != expected_state:
             raise RuntimeError("state mismatch — login aborted (possible CSRF).")
-        self._exchange({
-            "grant_type": "authorization_code",
-            "client_id": CLIENT_ID,
-            "code": code,
-            "code_verifier": code_verifier,
-            "redirect_uri": REDIRECT_URI,
-        })
+        self._exchange(
+            {
+                "grant_type": "authorization_code",
+                "client_id": CLIENT_ID,
+                "code": code,
+                "code_verifier": code_verifier,
+                "redirect_uri": REDIRECT_URI,
+            }
+        )
 
     def login_interactive(self, open_browser: bool = True) -> None:
         """Run the full one-time login at a prompt (opens browser, asks for the URL)."""
@@ -198,8 +208,10 @@ class Authenticator:
                 webbrowser.open(url)
             except Exception:
                 pass
-        print("After signing in the browser will try to open a 'ka-login://' / "
-              "kleinanzeigen.de URL (it may show an error page — that's fine).")
+        print(
+            "After signing in the browser will try to open a 'ka-login://' / "
+            "kleinanzeigen.de URL (it may show an error page — that's fine)."
+        )
         redirect = input("Paste the FULL URL from the address bar here: ").strip()
         self.complete_login(redirect, verifier, state)
         who = f" as {self.email}" if self.email else ""
@@ -218,17 +230,24 @@ class Authenticator:
         return self._t["access_token"]
 
     def _refresh(self) -> None:
-        self._exchange({
-            "grant_type": "refresh_token",
-            "client_id": CLIENT_ID,
-            "refresh_token": self._t["refresh_token"],
-        })
+        self._exchange(
+            {
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "refresh_token": self._t["refresh_token"],
+            }
+        )
 
     def _exchange(self, payload: dict) -> None:
-        r = self._s.post(TOKEN_URL, json=payload,
-                         headers={"Accept": "application/json",
-                                  "User-Agent": "Kleinanzeigen Android 2026.25.0"},
-                         timeout=30)
+        r = self._s.post(
+            TOKEN_URL,
+            json=payload,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "Kleinanzeigen Android 2026.25.0",
+            },
+            timeout=30,
+        )
         if r.status_code != 200:
             raise RuntimeError(
                 f"Auth0 token endpoint returned {r.status_code}: {r.text[:300]}"

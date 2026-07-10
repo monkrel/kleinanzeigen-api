@@ -31,7 +31,9 @@ dev = [
     "pytest>=7",
     "build>=1.0",
     "twine>=5.0",
+    "pytest-cov>=4.0"
 ]
+
 
 [project.urls]
 Homepage = "https://github.com/monkrel/kleinanzeigen-api"
@@ -57,3 +59,11 @@ include = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=kleinanzeigen_api --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["src/kleinanzeigen_api"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true

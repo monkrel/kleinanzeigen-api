@@ -21,6 +21,7 @@ values with the basic_user / basic_pw arguments or the KLEINANZEIGEN_BASIC_USER
 Kleinanzeigen's terms of service forbid automation, so keep this for personal
 use and don't send requests too fast.
 """
+
 from __future__ import annotations
 
 import base64
@@ -110,6 +111,7 @@ def _posted_dt(posted: str):
     can't read, so we patch the colon in first.
     """
     import datetime
+
     s = posted or ""
     if len(s) > 5 and s[-5] in "+-" and ":" not in s[-5:]:
         s = s[:-2] + ":" + s[-2:]
@@ -122,12 +124,12 @@ def _posted_dt(posted: str):
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
     """Great-circle distance in km between two lat/lon points."""
     import math
+
     r = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlmb = math.radians(lon2 - lon1)
-    a = (math.sin(dphi / 2) ** 2
-         + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
     return 2 * r * math.asin(math.sqrt(a))
 
 
@@ -164,8 +166,8 @@ class Conversation:
     id: str
     ad_id: str
     ad_title: str
-    role: str            # "BUYER" or "SELLER"
-    counterparty: str    # name of the other person
+    role: str  # "BUYER" or "SELLER"
+    counterparty: str  # name of the other person
     unread: bool
     unread_count: int
     last_received: str
@@ -217,10 +219,17 @@ class KleinanzeigenAPI:
             login when it's first needed.
     """
 
-    def __init__(self, rate_limit: float = 1.5, app_version: str = APP_VERSION,
-                 timeout: int = 25, max_retries: int = 3,
-                 basic_user: Optional[str] = None, basic_pw: Optional[str] = None,
-                 authenticator=None, user_id: Optional[str] = None):
+    def __init__(
+        self,
+        rate_limit: float = 1.5,
+        app_version: str = APP_VERSION,
+        timeout: int = 25,
+        max_retries: int = 3,
+        basic_user: Optional[str] = None,
+        basic_pw: Optional[str] = None,
+        authenticator=None,
+        user_id: Optional[str] = None,
+    ):
         self.rate_limit = rate_limit
         self.app_version = app_version
         self.timeout = timeout
@@ -282,7 +291,9 @@ class KleinanzeigenAPI:
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
             try:
-                r = self._s.get(url, params=params, headers=self._headers(), timeout=self.timeout)
+                r = self._s.get(
+                    url, params=params, headers=self._headers(), timeout=self.timeout
+                )
                 self._last = time.time()
                 if r.status_code == 200:
                     return r
@@ -305,10 +316,18 @@ class KleinanzeigenAPI:
                 time.sleep(1.2 * attempt)
         raise RuntimeError(f"GET failed after {self.max_retries} tries: {url} ({last})")
 
-    def _request(self, method: str, url: str, *, params: Optional[dict] = None,
-                 json: Optional[dict] = None, data: Optional[str] = None,
-                 content_type: Optional[str] = None, authed: bool = True,
-                 gateway: bool = False) -> creq.Response:
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        params: Optional[dict] = None,
+        json: Optional[dict] = None,
+        data: Optional[str] = None,
+        content_type: Optional[str] = None,
+        authed: bool = True,
+        gateway: bool = False,
+    ) -> creq.Response:
         """Send a POST/PUT/DELETE. Used by the logged-in chat and ad calls.
 
         Retries on the same temporary errors as _get. On other errors it raises
@@ -325,24 +344,31 @@ class KleinanzeigenAPI:
                 if content_type:
                     headers["Content-Type"] = content_type
                 body = data.encode("utf-8") if isinstance(data, str) else data
-                r = self._s.request(method, url, params=params, json=json, data=body,
-                                    headers=headers, timeout=self.timeout)
+                r = self._s.request(
+                    method,
+                    url,
+                    params=params,
+                    json=json,
+                    data=body,
+                    headers=headers,
+                    timeout=self.timeout,
+                )
                 self._last = time.time()
                 if r.status_code in (200, 201, 204):
                     return r
                 if r.status_code in (429, 500, 503):
                     time.sleep(1.5 * attempt + random.uniform(0, 1.5))
                     continue
-                raise RuntimeError(
-                    f"{method} {url} -> {r.status_code}: {r.text[:300]}"
-                )
+                raise RuntimeError(f"{method} {url} -> {r.status_code}: {r.text[:300]}")
             except RuntimeError:
                 raise
             except Exception as e:  # noqa: BLE001 - retry on any network error
                 last = e
                 self._last = time.time()
                 time.sleep(1.2 * attempt)
-        raise RuntimeError(f"{method} failed after {self.max_retries} tries: {url} ({last})")
+        raise RuntimeError(
+            f"{method} failed after {self.max_retries} tries: {url} ({last})"
+        )
 
     # -- location resolution ------------------------------------------------ #
     def resolve_location(self, query: str) -> list:
@@ -389,11 +415,12 @@ class KleinanzeigenAPI:
 
     def _resolve_location_web(self, query: str) -> list:
         """Look up a place name on the website (used only as a backup)."""
-        r = self._s.get(f"{WEB_HOST}/s-ort-empfehlungen.json",
-                        params={"query": query},
-                        headers={"X-Requested-With": "XMLHttpRequest",
-                                 "Accept-Language": "de-DE"},
-                        timeout=self.timeout)
+        r = self._s.get(
+            f"{WEB_HOST}/s-ort-empfehlungen.json",
+            params={"query": query},
+            headers={"X-Requested-With": "XMLHttpRequest", "Accept-Language": "de-DE"},
+            timeout=self.timeout,
+        )
         out = []
         for k, label in r.json().items():
             lid = k.lstrip("_")
@@ -445,9 +472,9 @@ class KleinanzeigenAPI:
             v = vlist[0].get("value") if vlist else None
             attrs[label] = v
             name = at.get("name", "")
-            if name.endswith(".qm"):            # wohnung_mieten.qm / haus_mieten.qm
+            if name.endswith(".qm"):  # wohnung_mieten.qm / haus_mieten.qm
                 size = _num(v)
-            elif name.endswith(".zimmer"):      # *_mieten.zimmer
+            elif name.endswith(".zimmer"):  # *_mieten.zimmer
                 rooms = _num(v)
         # public website link
         url = ""
@@ -485,10 +512,21 @@ class KleinanzeigenAPI:
         )
 
     # -- search ------------------------------------------------------------- #
-    def search_page(self, *, category_id=None, location_id=None,
-                    distance_km=None, min_price=None, max_price=None,
-                    ad_type="OFFERED", q=None, picture_required=False,
-                    sort_type=None, page=0, size=25) -> tuple:
+    def search_page(
+        self,
+        *,
+        category_id=None,
+        location_id=None,
+        distance_km=None,
+        min_price=None,
+        max_price=None,
+        ad_type="OFFERED",
+        q=None,
+        picture_required=False,
+        sort_type=None,
+        page=0,
+        size=25,
+    ) -> tuple:
         """Fetch one page of results. Returns (total_found, list_of_Listing)."""
         params = {"page": page, "size": size}
         if category_id:
@@ -507,7 +545,9 @@ class KleinanzeigenAPI:
             params["q"] = q
         if picture_required:
             params["pictureRequired"] = "true"
-        if sort_type:  # PRICE_ASCENDING | PRICE_DESCENDING | DATE_DESCENDING | DISTANCE_ASCENDING
+        if (
+            sort_type
+        ):  # PRICE_ASCENDING | PRICE_DESCENDING | DATE_DESCENDING | DISTANCE_ASCENDING
             params["sortType"] = sort_type
 
         data = self._get(f"{API_HOST}/api/ads.json", params=params).json()
@@ -522,15 +562,33 @@ class KleinanzeigenAPI:
         block = data.get(ADS_NS, {}).get("value", {})
         total = int(_num(block.get("paging", {}).get("numFound")) or 0)
         raw = block.get("ad", [])
-        if isinstance(raw, dict):  # a single result comes back as one object, not a list
+        if isinstance(
+            raw, dict
+        ):  # a single result comes back as one object, not a list
             raw = [raw]
         return total, [self._parse_ad(a) for a in raw]
 
-    def search(self, location=None, *, q=None, exclude=None, category=None,
-               category_id=None, distance_km=None, min_price=None, max_price=None,
-               min_rooms=None, max_rooms=None, min_size=None, max_size=None,
-               ad_type="OFFERED", sort_type=None, pages=1, size=25,
-               sort_by_price=False) -> list:
+    def search(
+        self,
+        location=None,
+        *,
+        q=None,
+        exclude=None,
+        category=None,
+        category_id=None,
+        distance_km=None,
+        min_price=None,
+        max_price=None,
+        min_rooms=None,
+        max_rooms=None,
+        min_size=None,
+        max_size=None,
+        ad_type="OFFERED",
+        sort_type=None,
+        pages=1,
+        size=25,
+        sort_by_price=False,
+    ) -> list:
         """Search kleinanzeigen.de. By default this searches every category.
 
         Picking a category:
@@ -553,7 +611,9 @@ class KleinanzeigenAPI:
         """
         if category is not None and category_id is not None:
             raise ValueError("pass either `category` or `category_id`, not both")
-        category_id = _catalog.resolve_category(category if category is not None else category_id)
+        category_id = _catalog.resolve_category(
+            category if category is not None else category_id
+        )
         if sort_by_price and not sort_type:  # default to cheapest-first
             sort_type = "PRICE_ASCENDING"
         exclude_terms = _as_terms(exclude)
@@ -562,26 +622,42 @@ class KleinanzeigenAPI:
         results, seen = [], set()
         for page in range(pages):
             total, listings = self.search_page(
-                category_id=category_id, location_id=location_id, distance_km=distance_km,
-                min_price=min_price, max_price=max_price, ad_type=ad_type, q=q,
-                sort_type=sort_type, page=page, size=size)
+                category_id=category_id,
+                location_id=location_id,
+                distance_km=distance_km,
+                min_price=min_price,
+                max_price=max_price,
+                ad_type=ad_type,
+                q=q,
+                sort_type=sort_type,
+                page=page,
+                size=size,
+            )
             if not listings:
                 break
-            for l in listings:
-                if l.id in seen:
+            for listing in listings:
+                if listing.id in seen:
                     continue
-                if _excluded(l, exclude_terms):
+                if _excluded(listing, exclude_terms):
                     continue
-                if min_rooms is not None and (l.rooms is None or l.rooms < min_rooms):
+                if min_rooms is not None and (
+                    listing.rooms is None or listing.rooms < min_rooms
+                ):
                     continue
-                if max_rooms is not None and (l.rooms is None or l.rooms > max_rooms):
+                if max_rooms is not None and (
+                    listing.rooms is None or listing.rooms > max_rooms
+                ):
                     continue
-                if min_size is not None and (l.size_m2 is None or l.size_m2 < min_size):
+                if min_size is not None and (
+                    listing.size_m2 is None or listing.size_m2 < min_size
+                ):
                     continue
-                if max_size is not None and (l.size_m2 is None or l.size_m2 > max_size):
+                if max_size is not None and (
+                    listing.size_m2 is None or listing.size_m2 > max_size
+                ):
                     continue
-                seen.add(l.id)
-                results.append(l)
+                seen.add(listing.id)
+                results.append(listing)
             if (page + 1) * size >= total:
                 break
         return results  # already ordered by the server (sort_type)
@@ -607,13 +683,15 @@ class KleinanzeigenAPI:
         """
         if category is not None and category_id is not None:
             raise ValueError("pass either `category` or `category_id`, not both")
-        cat = _catalog.resolve_category(category if category is not None else category_id)
+        cat = _catalog.resolve_category(
+            category if category is not None else category_id
+        )
         if cat is None:
             raise ValueError("search_metadata needs a category (name or id)")
         data = self._get(f"{API_HOST}/api/ads/search-metadata/{cat}.json").json()
         opts = _val(data.get(SEARCH_META_NS, {}))
         out: dict = {}
-        for name, spec in (opts.items() if isinstance(opts, dict) else []):
+        for name, spec in opts.items() if isinstance(opts, dict) else []:
             if not isinstance(spec, dict):
                 continue
             entry = {
@@ -625,8 +703,11 @@ class KleinanzeigenAPI:
             if sv:
                 if isinstance(sv, dict):  # one choice comes back alone, not in a list
                     sv = [sv]
-                entry["values"] = [(v.get("value"), v.get("localized-label"))
-                                   for v in sv if isinstance(v, dict)]
+                entry["values"] = [
+                    (v.get("value"), v.get("localized-label"))
+                    for v in sv
+                    if isinstance(v, dict)
+                ]
             out[name] = entry
         return out
 
@@ -642,8 +723,11 @@ class KleinanzeigenAPI:
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
             try:
-                r = self._s.get(f"{API_HOST}/api/ads/{ad_id}.json",
-                                headers=self._headers(), timeout=self.timeout)
+                r = self._s.get(
+                    f"{API_HOST}/api/ads/{ad_id}.json",
+                    headers=self._headers(),
+                    timeout=self.timeout,
+                )
                 self._last = time.time()
                 if r.status_code == 200:
                     return r.json()
@@ -665,7 +749,9 @@ class KleinanzeigenAPI:
                 last = e
                 self._last = time.time()
                 time.sleep(1.2 * attempt)
-        raise RuntimeError(f"GET ad {ad_id} failed after {self.max_retries} tries ({last})")
+        raise RuntimeError(
+            f"GET ad {ad_id} failed after {self.max_retries} tries ({last})"
+        )
 
     @staticmethod
     def _unwrap_ad(data: dict) -> dict:
@@ -701,8 +787,11 @@ class KleinanzeigenAPI:
         removed by moderation, so a single 404 doesn't mean "not created yet". We
         only trust it once a few spaced-out ids above it are all missing too.
         """
-        return not (self._id_exists(ad_id) or self._id_exists(ad_id + 5)
-                    or self._id_exists(ad_id + 13))
+        return not (
+            self._id_exists(ad_id)
+            or self._id_exists(ad_id + 5)
+            or self._id_exists(ad_id + 13)
+        )
 
     def current_max_id(self, seed: Optional[int] = None) -> int:
         """Return the id of the newest ad that currently exists, site-wide.
@@ -718,7 +807,8 @@ class KleinanzeigenAPI:
             if not newest:
                 raise RuntimeError(
                     "search returned no ads, so there's no id to start from — "
-                    "pass a seed (any recent ad id) instead")
+                    "pass a seed (any recent ad id) instead"
+                )
             seed = int(newest[0].id)
         lo = int(seed)
         # exponential search upward for a point that is past the frontier
@@ -737,49 +827,85 @@ class KleinanzeigenAPI:
                 b = m
         return a
 
-    def _ad_matches(self, l: Listing, *, category_id, q_terms, exclude_terms,
-                    min_price, max_price, price_type, poster_type, near,
-                    radius_km, match) -> bool:
+    def _ad_matches(
+        self,
+        listing: Listing,
+        *,
+        category_id,
+        q_terms,
+        exclude_terms,
+        min_price,
+        max_price,
+        price_type,
+        poster_type,
+        near,
+        radius_km,
+        match,
+    ) -> bool:
         """Client-side filter for iter_new_ads (the by-id endpoint can't filter)."""
-        if category_id is not None and l.category_id != category_id:
+        if category_id is not None and listing.category_id != category_id:
             return False
         if price_type is not None:
-            lpt = (l.price_type or "").upper()
+            lpt = (listing.price_type or "").upper()
             free = {"FREE", "GIVE_AWAY"}
             if price_type in free:
                 if lpt not in free:
                     return False
             elif lpt != price_type:
                 return False
-        if min_price is not None and (l.price is None or l.price < min_price):
+        if min_price is not None and (
+            listing.price is None or listing.price < min_price
+        ):
             return False
-        if max_price is not None and (l.price is None or l.price > max_price):
+        if max_price is not None and (
+            listing.price is None or listing.price > max_price
+        ):
             return False
-        if poster_type is not None and (l.poster_type or "").upper() != poster_type:
+        if (
+            poster_type is not None
+            and (listing.poster_type or "").upper() != poster_type
+        ):
             return False
         if q_terms:
-            hay = f"{l.title}\n{l.description}".lower()
+            hay = f"{listing.title}\n{listing.description}".lower()
             if not all(t in hay for t in q_terms):
                 return False
-        if _excluded(l, exclude_terms):
+        if _excluded(listing, exclude_terms):
             return False
         if near is not None and radius_km is not None:
-            if l.latitude is None or l.longitude is None:
+            if listing.latitude is None or listing.longitude is None:
                 return False
-            if _haversine_km(near[0], near[1], l.latitude, l.longitude) > radius_km:
+            if (
+                _haversine_km(near[0], near[1], listing.latitude, listing.longitude)
+                > radius_km
+            ):
                 return False
-        if match is not None and not match(l):
+        if match is not None and not match(listing):
             return False
         return True
 
-    def iter_new_ads(self, *, mode: str = "search",
-                     location=None, distance_km=None,
-                     start_id: Optional[int] = None, backfill: bool = False,
-                     category_id=None, q=None, exclude=None, min_price=None,
-                     max_price=None, price_type=None, poster_type=None,
-                     near=None, radius_km=None, match=None,
-                     poll_interval: float = 15.0, max_per_poll: int = 1200,
-                     retry_missing_for: float = 300.0):
+    def iter_new_ads(
+        self,
+        *,
+        mode: str = "search",
+        location=None,
+        distance_km=None,
+        start_id: Optional[int] = None,
+        backfill: bool = False,
+        category_id=None,
+        q=None,
+        exclude=None,
+        min_price=None,
+        max_price=None,
+        price_type=None,
+        poster_type=None,
+        near=None,
+        radius_km=None,
+        match=None,
+        poll_interval: float = 15.0,
+        max_per_poll: int = 1200,
+        retry_missing_for: float = 300.0,
+    ):
         """Yield newly-posted ads as they appear, as an endless generator.
 
         Two modes (see the README for the full story):
@@ -806,8 +932,10 @@ class KleinanzeigenAPI:
         if mode == "search" and start_id is not None:
             raise ValueError("start_id only makes sense in frontier mode")
         if mode == "frontier" and (location is not None or distance_km is not None):
-            raise ValueError("location/distance_km only work in search mode — "
-                             "frontier mode filters by near=(lat, lon) + radius_km")
+            raise ValueError(
+                "location/distance_km only work in search mode — "
+                "frontier mode filters by near=(lat, lon) + radius_km"
+            )
 
         pt = price_type.upper() if price_type else None
         poster = poster_type.upper() if poster_type else None
@@ -815,83 +943,153 @@ class KleinanzeigenAPI:
 
         if mode == "search":
             return self._iter_new_ads_search(
-                location=location, distance_km=distance_km,
-                category_id=category_id, q=q, exclude_terms=exclude_terms,
-                min_price=min_price, max_price=max_price, price_type=pt,
-                poster_type=poster, near=near, radius_km=radius_km,
-                match=match, backfill=backfill, poll_interval=poll_interval)
+                location=location,
+                distance_km=distance_km,
+                category_id=category_id,
+                q=q,
+                exclude_terms=exclude_terms,
+                min_price=min_price,
+                max_price=max_price,
+                price_type=pt,
+                poster_type=poster,
+                near=near,
+                radius_km=radius_km,
+                match=match,
+                backfill=backfill,
+                poll_interval=poll_interval,
+            )
         return self._iter_new_ads_frontier(
-            start_id=start_id, backfill=backfill, category_id=category_id,
-            q=q, exclude_terms=exclude_terms, min_price=min_price,
-            max_price=max_price, price_type=pt, poster_type=poster,
-            near=near, radius_km=radius_km, match=match,
-            poll_interval=poll_interval, max_per_poll=max_per_poll,
-            retry_missing_for=retry_missing_for)
+            start_id=start_id,
+            backfill=backfill,
+            category_id=category_id,
+            q=q,
+            exclude_terms=exclude_terms,
+            min_price=min_price,
+            max_price=max_price,
+            price_type=pt,
+            poster_type=poster,
+            near=near,
+            radius_km=radius_km,
+            match=match,
+            poll_interval=poll_interval,
+            max_per_poll=max_per_poll,
+            retry_missing_for=retry_missing_for,
+        )
 
-    def _iter_new_ads_search(self, *, location, distance_km, category_id, q,
-                             exclude_terms, min_price, max_price, price_type,
-                             poster_type, near, radius_km, match, backfill,
-                             poll_interval):
+    def _iter_new_ads_search(
+        self,
+        *,
+        location,
+        distance_km,
+        category_id,
+        q,
+        exclude_terms,
+        min_price,
+        max_price,
+        price_type,
+        poster_type,
+        near,
+        radius_km,
+        match,
+        backfill,
+        poll_interval,
+    ):
         """The cheap watcher: poll newest-first search, dodge their cache."""
         location_id = self._location_to_id(location) if location else None
         # their cache is per exact query, so a different page size each time
         # means we never get a cached (stale) answer
         sizes = list(range(25, 101))
         random.shuffle(sizes)
-        seen: dict = {}   # ids we already yielded (or saw on the first page)
+        seen: dict = {}  # ids we already yielded (or saw on the first page)
         watermark = None  # only ads posted after this count as new
         first = True
         n = 0
         while True:
             _, listings = self.search_page(
-                category_id=category_id, location_id=location_id,
-                distance_km=distance_km, min_price=min_price,
-                max_price=max_price, q=q, sort_type="DATE_DESCENDING",
-                size=sizes[n % len(sizes)])
+                category_id=category_id,
+                location_id=location_id,
+                distance_km=distance_km,
+                min_price=min_price,
+                max_price=max_price,
+                q=q,
+                sort_type="DATE_DESCENDING",
+                size=sizes[n % len(sizes)],
+            )
             n += 1
             if first:
                 # later polls use bigger pages that reach further into the
                 # past; the cut-off stops old ads showing up as "new"
-                stamps = [d for l in listings if (d := _posted_dt(l.posted))]
+                stamps = [
+                    d for listing in listings if (d := _posted_dt(listing.posted))
+                ]
                 if stamps:
                     watermark = min(stamps) if backfill else max(stamps)
-            for l in reversed(listings):  # oldest first, like a live feed
-                if l.id in seen:
+            for listing in reversed(listings):  # oldest first, like a live feed
+                if listing.id in seen:
                     continue
-                seen[l.id] = None
+                seen[listing.id] = None
                 if len(seen) > 5000:  # keep the seen-set from growing forever
                     seen.pop(next(iter(seen)))
                 if first and not backfill:
                     continue  # first page is just our starting point
-                posted = _posted_dt(l.posted)
+                posted = _posted_dt(listing.posted)
                 if watermark and posted and posted < watermark:
                     continue  # older than where we started watching
                 # category/price/q were already filtered by the server here
                 if self._ad_matches(
-                        l, category_id=None, q_terms=[],
-                        exclude_terms=exclude_terms, min_price=None,
-                        max_price=None, price_type=price_type,
-                        poster_type=poster_type, near=near,
-                        radius_km=radius_km, match=match):
-                    yield l
+                    listing,
+                    category_id=None,
+                    q_terms=[],
+                    exclude_terms=exclude_terms,
+                    min_price=None,
+                    max_price=None,
+                    price_type=price_type,
+                    poster_type=poster_type,
+                    near=near,
+                    radius_km=radius_km,
+                    match=match,
+                ):
+                    yield listing
             first = False
             time.sleep(max(0.0, poll_interval))
 
-    def _iter_new_ads_frontier(self, *, start_id, backfill, category_id, q,
-                               exclude_terms, min_price, max_price, price_type,
-                               poster_type, near, radius_km, match,
-                               poll_interval, max_per_poll, retry_missing_for):
+    def _iter_new_ads_frontier(
+        self,
+        *,
+        start_id,
+        backfill,
+        category_id,
+        q,
+        exclude_terms,
+        min_price,
+        max_price,
+        price_type,
+        poster_type,
+        near,
+        radius_km,
+        match,
+        poll_interval,
+        max_per_poll,
+        retry_missing_for,
+    ):
         """The fast watcher: walk the ad ids upward and fetch each new one."""
         cat = str(category_id) if category_id is not None else None
         q_terms = [t for t in (q or "").lower().split() if t]
 
-        def matches(l):
+        def matches(listing):
             return self._ad_matches(
-                l, category_id=cat, q_terms=q_terms,
-                exclude_terms=exclude_terms, min_price=min_price,
-                max_price=max_price, price_type=price_type,
-                poster_type=poster_type, near=near, radius_km=radius_km,
-                match=match)
+                listing,
+                category_id=cat,
+                q_terms=q_terms,
+                exclude_terms=exclude_terms,
+                min_price=min_price,
+                max_price=max_price,
+                price_type=price_type,
+                poster_type=poster_type,
+                near=near,
+                radius_km=radius_km,
+                match=match,
+            )
 
         if start_id is not None:
             last = int(start_id)
@@ -901,7 +1099,7 @@ class KleinanzeigenAPI:
         else:
             last = self.current_max_id()
 
-        pending: dict = {}   # id -> when we first got a 404 for it
+        pending: dict = {}  # id -> when we first got a 404 for it
         last_warned = 0.0
         while True:
             # give recent 404s another look — ads held back by moderation
@@ -910,19 +1108,19 @@ class KleinanzeigenAPI:
                 if time.time() - pending[ad_id] > retry_missing_for:
                     del pending[ad_id]
                     continue
-                l = self.try_get_ad(ad_id)
-                if l is not None:
+                listing = self.try_get_ad(ad_id)
+                if listing is not None:
                     del pending[ad_id]
-                    if matches(l):
-                        yield l
+                    if matches(listing):
+                        yield listing
 
             # walk forward from where we stopped last time
             fetched = 0
             at_frontier = False
             while fetched < max_per_poll:
-                l = self.try_get_ad(last + 1)
+                listing = self.try_get_ad(last + 1)
                 fetched += 1
-                if l is None:
+                if listing is None:
                     # a 404 is either a gap (deleted / still being checked)
                     # or the end of the ids so far — _beyond_max tells which
                     if self._beyond_max(last + 1):
@@ -932,15 +1130,18 @@ class KleinanzeigenAPI:
                     last += 1
                     continue
                 last += 1
-                if matches(l):
-                    yield l
+                if matches(listing):
+                    yield listing
 
             if at_frontier:
                 time.sleep(max(0.0, poll_interval))
             elif fetched >= max_per_poll and time.time() - last_warned > 60:
-                print("iter_new_ads: falling behind (new ads come in faster "
-                      "than we fetch) — lower rate_limit or switch to the "
-                      "default search mode", file=sys.stderr)
+                print(
+                    "iter_new_ads: falling behind (new ads come in faster "
+                    "than we fetch) — lower rate_limit or switch to the "
+                    "default search mode",
+                    file=sys.stderr,
+                )
                 last_warned = time.time()
 
     def watch_new_ads(self, callback, **kwargs) -> None:
@@ -999,8 +1200,9 @@ class KleinanzeigenAPI:
                 "Pass user_id=... to KleinanzeigenAPI instead."
             )
         # this needs a logged-in request, so use _request with authed=True
-        r = self._request("GET", f"{API_HOST}/api/users/{email}/profile.json",
-                          authed=True)
+        r = self._request(
+            "GET", f"{API_HOST}/api/users/{email}/profile.json", authed=True
+        )
         body = r.json()
         uid = (body.get("data") or {}).get("id") or body.get("id")
         if not uid:
@@ -1015,7 +1217,10 @@ class KleinanzeigenAPI:
         r = self._request(
             "GET",
             f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations",
-            params={"page": page, "size": size}, authed=True, gateway=True)
+            params={"page": page, "size": size},
+            authed=True,
+            gateway=True,
+        )
         body = r.json()
         items = body.get("conversations") or body.get("data") or []
         if isinstance(items, dict):
@@ -1033,7 +1238,10 @@ class KleinanzeigenAPI:
         r = self._request(
             "PUT",
             f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/{conversation_id}",
-            params={"contentWarnings": "true"}, authed=True, gateway=True)
+            params={"contentWarnings": "true"},
+            authed=True,
+            gateway=True,
+        )
         return r.json()
 
     def messages(self, conversation_id: str) -> list:
@@ -1049,10 +1257,21 @@ class KleinanzeigenAPI:
             if not isinstance(m, dict):
                 continue
             bound = (m.get("boundness") or m.get("direction") or "").upper()
-            direction = ("received" if "IN" in bound else
-                         "sent" if "OUT" in bound else bound.lower())
-            out.append({"text": _message_text(m), "direction": direction,
-                        "date": m.get("receivedDate") or "", "raw": m})
+            direction = (
+                "received"
+                if "IN" in bound
+                else "sent"
+                if "OUT" in bound
+                else bound.lower()
+            )
+            out.append(
+                {
+                    "text": _message_text(m),
+                    "direction": direction,
+                    "date": m.get("receivedDate") or "",
+                    "raw": m,
+                }
+            )
         return out
 
     def reply(self, conversation_id: str, text: str) -> None:
@@ -1061,9 +1280,15 @@ class KleinanzeigenAPI:
         self._request(
             "POST",
             f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/{conversation_id}",
-            params={"warnPhoneNumber": "false", "warnEmail": "false",
-                    "warnBankDetails": "false"},
-            json={"message": text}, authed=True, gateway=True)
+            params={
+                "warnPhoneNumber": "false",
+                "warnEmail": "false",
+                "warnBankDetails": "false",
+            },
+            json={"message": text},
+            authed=True,
+            gateway=True,
+        )
 
     def mark_read(self, conversation_ids) -> None:
         """Mark one or more conversations as read."""
@@ -1074,7 +1299,10 @@ class KleinanzeigenAPI:
         self._request(
             "POST",
             f"{GATEWAY_HOST}/messagebox/api/users/{uid}/conversations/read",
-            params={"ids": ids}, authed=True, gateway=True)
+            params={"ids": ids},
+            authed=True,
+            gateway=True,
+        )
 
     def start_conversation(self, ad_id: str, contact_name: str) -> dict:
         """Start a new chat on an ad (the first message to a seller).
@@ -1085,12 +1313,19 @@ class KleinanzeigenAPI:
         r = self._request(
             "POST",
             f"{API_HOST}/api/users/{uid}/create-conversation/{ad_id}",
-            params={"contactName": contact_name}, authed=True)
+            params={"contactName": contact_name},
+            authed=True,
+        )
         return r.json()
 
     # -- logged-in: your own ads ------------------------------------------- #
-    def my_ads(self, page: int = 0, size: int = 25, sort_type: Optional[str] = None,
-               q: Optional[str] = None) -> list:
+    def my_ads(
+        self,
+        page: int = 0,
+        size: int = 25,
+        sort_type: Optional[str] = None,
+        q: Optional[str] = None,
+    ) -> list:
         """List your own ads (both live and paused) as Listing objects.
 
         Pass q to filter your ads by a keyword.
@@ -1101,15 +1336,17 @@ class KleinanzeigenAPI:
             params["sortType"] = sort_type
         if q:
             params["q"] = q
-        data = self._request("GET", f"{API_HOST}/api/users/{uid}/ads.json",
-                            params=params, authed=True).json()
+        data = self._request(
+            "GET", f"{API_HOST}/api/users/{uid}/ads.json", params=params, authed=True
+        ).json()
         return self._parse_ads_block(data)[1]
 
     def get_my_ad(self, ad_id: str) -> Listing:
         """Fetch one of your own ads (works for paused ads too)."""
         uid = self.user_id
-        data = self._request("GET", f"{API_HOST}/api/users/{uid}/ads/{ad_id}.json",
-                            authed=True).json()
+        data = self._request(
+            "GET", f"{API_HOST}/api/users/{uid}/ads/{ad_id}.json", authed=True
+        ).json()
         ad = data.get("{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad", data)
         ad = ad.get("value", ad) if isinstance(ad, dict) else ad
         return self._parse_ad(ad)
@@ -1117,26 +1354,28 @@ class KleinanzeigenAPI:
     def pause_ad(self, ad_id: str) -> None:
         """Take one of your ads offline (reversible with activate_ad)."""
         uid = self.user_id
-        self._request("PUT", f"{API_HOST}/api/users/{uid}/ads/paused/{ad_id}.json",
-                      authed=True)
+        self._request(
+            "PUT", f"{API_HOST}/api/users/{uid}/ads/paused/{ad_id}.json", authed=True
+        )
 
     def activate_ad(self, ad_id: str) -> None:
         """Bring a paused ad back online."""
         uid = self.user_id
-        self._request("PUT", f"{API_HOST}/api/users/{uid}/ads/active/{ad_id}.json",
-                      authed=True)
+        self._request(
+            "PUT", f"{API_HOST}/api/users/{uid}/ads/active/{ad_id}.json", authed=True
+        )
 
     def delete_ad(self, ad_id: str) -> None:
         """Permanently delete one of your ads."""
         uid = self.user_id
-        self._request("DELETE", f"{API_HOST}/api/users/{uid}/ads/{ad_id}",
-                      authed=True)
+        self._request("DELETE", f"{API_HOST}/api/users/{uid}/ads/{ad_id}", authed=True)
 
     def extend_ad(self, ad_id: str) -> None:
         """Renew/extend one of your ads (bumps its expiry)."""
         uid = self.user_id
-        self._request("POST", f"{API_HOST}/api/users/{uid}/ads/extend/{ad_id}",
-                      authed=True)
+        self._request(
+            "POST", f"{API_HOST}/api/users/{uid}/ads/extend/{ad_id}", authed=True
+        )
 
     def extend_status(self, ad_ids) -> list:
         """Return the renew/extend eligibility for one or more of your ads."""
@@ -1144,26 +1383,44 @@ class KleinanzeigenAPI:
         if isinstance(ad_ids, str):
             ad_ids = [ad_ids]
         ids = ",".join(str(a) for a in ad_ids)
-        return self._request("GET", f"{API_HOST}/api/users/{uid}/ads/extend/status",
-                             params={"adids": ids}, authed=True).json()
+        return self._request(
+            "GET",
+            f"{API_HOST}/api/users/{uid}/ads/extend/status",
+            params={"adids": ids},
+            authed=True,
+        ).json()
 
     def watchlist(self, page: int = 0, size: int = 25) -> list:
         """List the ads you've saved to your watchlist. Returns a list of Listing."""
         uid = self.user_id
         data = self._request(
-            "GET", f"{API_HOST}/api/users/{uid}/watchlist.json",
+            "GET",
+            f"{API_HOST}/api/users/{uid}/watchlist.json",
             params={"_in": ADS_FIELD_SELECTOR, "page": page, "size": size},
-            authed=True).json()
+            authed=True,
+        ).json()
         return self._parse_ads_block(data)[1]
 
     # -- logged-in: post a new ad ------------------------------------------ #
-    def post_ad(self, *, title: str, description: str, category_id,
-                location_id, price=None, price_type: str = "FIXED",
-                poster_type: str = "PRIVATE", ad_type: str = "OFFERED",
-                contact_name: Optional[str] = None, email: Optional[str] = None,
-                phone: Optional[str] = None, attributes: Optional[dict] = None,
-                picture_urls: Optional[list] = None,
-                latitude=None, longitude=None) -> str:
+    def post_ad(
+        self,
+        *,
+        title: str,
+        description: str,
+        category_id,
+        location_id,
+        price=None,
+        price_type: str = "FIXED",
+        poster_type: str = "PRIVATE",
+        ad_type: str = "OFFERED",
+        contact_name: Optional[str] = None,
+        email: Optional[str] = None,
+        phone: Optional[str] = None,
+        attributes: Optional[dict] = None,
+        picture_urls: Optional[list] = None,
+        latitude=None,
+        longitude=None,
+    ) -> str:
         """Post a new ad and return its id.
 
         A few things the API is picky about:
@@ -1181,14 +1438,29 @@ class KleinanzeigenAPI:
         if email is None:
             email = getattr(self._auth_provider, "email", None)
         xml = self._build_ad_xml(
-            title=title, description=description, category_id=category_id,
-            location_id=location_id, price=price, price_type=price_type,
-            poster_type=poster_type, ad_type=ad_type,
-            contact_name=contact_name or "", email=email or "", phone=phone,
-            attributes=attributes or {}, picture_urls=picture_urls or [],
-            latitude=latitude, longitude=longitude)
-        r = self._request("POST", f"{API_HOST}/api/users/{uid}/ads.json",
-                          data=xml, content_type="application/xml", authed=True)
+            title=title,
+            description=description,
+            category_id=category_id,
+            location_id=location_id,
+            price=price,
+            price_type=price_type,
+            poster_type=poster_type,
+            ad_type=ad_type,
+            contact_name=contact_name or "",
+            email=email or "",
+            phone=phone,
+            attributes=attributes or {},
+            picture_urls=picture_urls or [],
+            latitude=latitude,
+            longitude=longitude,
+        )
+        r = self._request(
+            "POST",
+            f"{API_HOST}/api/users/{uid}/ads.json",
+            data=xml,
+            content_type="application/xml",
+            authed=True,
+        )
         # the new id comes back either in a Location header or in the ad body
         loc = r.headers.get("Location") or r.headers.get("location") or ""
         if loc:
@@ -1205,25 +1477,53 @@ class KleinanzeigenAPI:
 
     # XML namespaces the ad body has to declare.
     _AD_NAMESPACES = {
-        "types": "types/v1", "cat": "category/v1", "ad": "ad/v1",
-        "loc": "location/v1", "attr": "attribute/v1", "pic": "picture/v1",
-        "user": "user/v1", "rate": "rate/v1", "reply": "reply/v1",
-        "feed": "feed/v1", "shipping": "shipping/v1", "document": "document/v1",
-        "payment": "payment/v1", "medias": "media/v1", "ps": "productsafety/v1",
+        "types": "types/v1",
+        "cat": "category/v1",
+        "ad": "ad/v1",
+        "loc": "location/v1",
+        "attr": "attribute/v1",
+        "pic": "picture/v1",
+        "user": "user/v1",
+        "rate": "rate/v1",
+        "reply": "reply/v1",
+        "feed": "feed/v1",
+        "shipping": "shipping/v1",
+        "document": "document/v1",
+        "payment": "payment/v1",
+        "medias": "media/v1",
+        "ps": "productsafety/v1",
     }
     # our easy price-type names -> the value the API actually wants.
     _PRICE_TYPE_MAP = {
-        "FIXED": "SPECIFIED_AMOUNT", "SPECIFIED_AMOUNT": "SPECIFIED_AMOUNT",
-        "NEGOTIABLE": "PLEASE_CONTACT", "VB": "PLEASE_CONTACT",
+        "FIXED": "SPECIFIED_AMOUNT",
+        "SPECIFIED_AMOUNT": "SPECIFIED_AMOUNT",
+        "NEGOTIABLE": "PLEASE_CONTACT",
+        "VB": "PLEASE_CONTACT",
         "PLEASE_CONTACT": "PLEASE_CONTACT",
-        "FREE": "FREE", "GIVE_AWAY": "FREE",
+        "FREE": "FREE",
+        "GIVE_AWAY": "FREE",
     }
 
     @classmethod
-    def _build_ad_xml(cls, *, title, description, category_id, location_id,
-                      price, price_type, poster_type, ad_type, contact_name,
-                      email, phone, attributes, picture_urls, latitude,
-                      longitude) -> str:
+    def _build_ad_xml(
+        cls,
+        *,
+        title,
+        description,
+        category_id,
+        location_id,
+        price,
+        price_type,
+        poster_type,
+        ad_type,
+        contact_name,
+        email,
+        phone,
+        attributes,
+        picture_urls,
+        latitude,
+        longitude,
+    ) -> str:
         """Build the XML body for a new ad. The API takes XML here, not JSON."""
         from xml.sax.saxutils import escape, quoteattr
 
@@ -1233,7 +1533,8 @@ class KleinanzeigenAPI:
 
         ns = " ".join(
             f'xmlns:{p}="http://www.ebayclassifiedsgroup.com/schema/{s}"'
-            for p, s in cls._AD_NAMESPACES.items())
+            for p, s in cls._AD_NAMESPACES.items()
+        )
         pt = cls._PRICE_TYPE_MAP.get(str(price_type).upper(), "SPECIFIED_AMOUNT")
 
         parts = [
@@ -1249,13 +1550,14 @@ class KleinanzeigenAPI:
         if phone:
             parts.append(f"<ad:phone>{esc(phone)}</ad:phone>")
         parts.append(
-            f"<ad:poster-type><ad:value>{esc(poster_type)}</ad:value></ad:poster-type>")
+            f"<ad:poster-type><ad:value>{esc(poster_type)}</ad:value></ad:poster-type>"
+        )
+        parts.append(f"<ad:ad-type><ad:value>{esc(ad_type)}</ad:value></ad:ad-type>")
+        parts.append(f"<cat:category id={quoteattr(str(category_id))}/>")
         parts.append(
-            f"<ad:ad-type><ad:value>{esc(ad_type)}</ad:value></ad:ad-type>")
-        parts.append(f'<cat:category id={quoteattr(str(category_id))}/>')
-        parts.append(
-            f'<loc:locations><loc:location id={quoteattr(str(location_id))}/>'
-            f'</loc:locations>')
+            f"<loc:locations><loc:location id={quoteattr(str(location_id))}/>"
+            f"</loc:locations>"
+        )
         addr = []
         if latitude is not None:
             addr.append(f"<types:latitude>{esc(latitude)}</types:latitude>")
@@ -1263,19 +1565,23 @@ class KleinanzeigenAPI:
             addr.append(f"<types:longitude>{esc(longitude)}</types:longitude>")
         addr.append("<types:show-full-address>false</types:show-full-address>")
         parts.append("<ad:ad-address>" + "".join(addr) + "</ad:ad-address>")
-        price_parts = [f"<types:price-type><types:value>{pt}</types:value>"
-                       "</types:price-type>"]
+        price_parts = [
+            f"<types:price-type><types:value>{pt}</types:value>" "</types:price-type>"
+        ]
         if pt != "FREE" and price is not None:
             price_parts.append(f"<types:amount>{esc(price)}</types:amount>")
         parts.append("<ad:price>" + "".join(price_parts) + "</ad:price>")
         pics = "".join(
             f'<pic:picture><pic:link rel="XXL" href={quoteattr(str(u))}/>'
-            f'</pic:picture>' for u in picture_urls)
+            f"</pic:picture>"
+            for u in picture_urls
+        )
         parts.append(f"<pic:pictures>{pics}</pic:pictures>")
         attr_xml = "".join(
-            f'<attr:attribute name={quoteattr(str(k))}>'
+            f"<attr:attribute name={quoteattr(str(k))}>"
             f"<attr:value>{esc(v)}</attr:value></attr:attribute>"
-            for k, v in attributes.items())
+            for k, v in attributes.items()
+        )
         parts.append(f"<attr:attributes>{attr_xml}</attr:attributes>")
         if str(ad_type).upper() == "OFFERED":
             parts.append('<payment:buy-now selected="false"/>')

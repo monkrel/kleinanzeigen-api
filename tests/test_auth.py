@@ -1,5 +1,6 @@
 """Offline tests for the Auth0 login helper. No real network is used - the
 token endpoint is faked with a small stand-in session."""
+
 import base64
 import hashlib
 import json
@@ -41,8 +42,11 @@ class FakeSession:
 
 def test_pkce_challenge_matches_verifier():
     verifier, challenge = auth._make_pkce()
-    expected = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+    expected = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        .decode()
+        .rstrip("=")
+    )
     assert challenge == expected
 
 
@@ -69,9 +73,19 @@ def test_access_token_without_login_raises(tmp_path):
 
 def test_complete_login_exchanges_and_saves(tmp_path):
     path = str(tmp_path / "t.json")
-    sess = FakeSession([FakeResp(200, {
-        "access_token": "AT1", "refresh_token": "RT1", "expires_in": 3600,
-        "id_token": _fake_jwt({"email": "me@x.de"})})])
+    sess = FakeSession(
+        [
+            FakeResp(
+                200,
+                {
+                    "access_token": "AT1",
+                    "refresh_token": "RT1",
+                    "expires_in": 3600,
+                    "id_token": _fake_jwt({"email": "me@x.de"}),
+                },
+            )
+        ]
+    )
     a = Authenticator(token_path=path, session=sess)
     _, verifier, state = a.build_login_url()
     a.complete_login(f"https://callback/?code=abc&state={state}", verifier, state)
@@ -97,32 +111,88 @@ def test_complete_login_needs_a_code(tmp_path):
 
 
 def test_access_token_refreshes_when_expired(tmp_path):
-    a = Authenticator(token_path=str(tmp_path / "t.json"),
-                      session=FakeSession([FakeResp(200, {"access_token": "AT2",
-                                                          "expires_in": 3600})]))
+    a = Authenticator(
+        token_path=str(tmp_path / "t.json"),
+        session=FakeSession(
+            [FakeResp(200, {"access_token": "AT2", "expires_in": 3600})]
+        ),
+    )
     # pretend we have an old token that already expired
-    a._t = {"access_token": "OLD", "refresh_token": "RT",
-            "expires_at": time.time() - 10}
-    assert a.access_token() == "AT2"          # it refreshed
-    assert a._t["refresh_token"] == "RT"      # and kept the refresh token
+    a._t = {
+        "access_token": "OLD",
+        "refresh_token": "RT",
+        "expires_at": time.time() - 10,
+    }
+    assert a.access_token() == "AT2"  # it refreshed
+    assert a._t["refresh_token"] == "RT"  # and kept the refresh token
 
 
 def test_refresh_token_from_env_for_headless(tmp_path, monkeypatch):
     # no token file, but a refresh token is provided via env (CI / container case)
     monkeypatch.setenv("KLEINANZEIGEN_REFRESH_TOKEN", "RT_FROM_ENV")
-    a = Authenticator(token_path=str(tmp_path / "missing.json"),
-                      session=FakeSession([FakeResp(200, {"access_token": "AT3",
-                                                          "expires_in": 3600})]))
-    assert a.logged_in is True            # seeded from the env var
-    assert a.access_token() == "AT3"      # first call refreshes it into a real token
+    a = Authenticator(
+        token_path=str(tmp_path / "missing.json"),
+        session=FakeSession(
+            [FakeResp(200, {"access_token": "AT3", "expires_in": 3600})]
+        ),
+    )
+    assert a.logged_in is True  # seeded from the env var
+    assert a.access_token() == "AT3"  # first call refreshes it into a real token
 
 
 def test_logout_forgets_everything(tmp_path):
     path = str(tmp_path / "t.json")
-    a = Authenticator(token_path=path, session=FakeSession([
-        FakeResp(200, {"access_token": "AT", "refresh_token": "RT",
-                       "expires_in": 3600})]))
+    a = Authenticator(
+        token_path=path,
+        session=FakeSession(
+            [
+                FakeResp(
+                    200,
+                    {"access_token": "AT", "refresh_token": "RT", "expires_in": 3600},
+                )
+            ]
+        ),
+    )
     a.complete_login("https://cb/?code=c&state=s", "v", None)
     assert a.logged_in
     a.logout()
     assert a.logged_in is False
+
+
+def test_complete_login_auth0_error_raises(tmp_path):
+    a = Authenticator(token_path=str(tmp_path / "t.json"), session=FakeSession([]))
+    with pytest.raises(RuntimeError) as excinfo:
+        a.complete_login(
+            "https://cb/?error=access_denied&error_description=User+aborted",
+            "verifier",
+            None,
+        )
+    assert "Auth0 returned an error" in str(excinfo.value)
+    assert "access_denied" in str(excinfo.value)
+
+
+def test_exchange_http_error_raises(tmp_path):
+    a = Authenticator(
+        token_path=str(tmp_path / "t.json"),
+        session=FakeSession([FakeResp(401, {"error": "invalid_grant"})]),
+    )
+    with pytest.raises(RuntimeError) as excinfo:
+        a._exchange({"grant_type": "authorization_code"})
+    assert "Auth0 token endpoint returned 401" in str(excinfo.value)
+
+
+def test_login_interactive(tmp_path, monkeypatch):
+    a = Authenticator(token_path=str(tmp_path / "t.json"), session=FakeSession([]))
+
+    completed = []
+
+    def fake_complete(redirect, verifier, state):
+        completed.append(redirect)
+        a._t = {"refresh_token": "RT", "email": "interactive@x.de"}
+
+    monkeypatch.setattr(a, "complete_login", fake_complete)
+    monkeypatch.setattr("builtins.input", lambda prompt: " https://cb/?code=123 ")
+
+    a.login_interactive(open_browser=False)
+    assert completed == ["https://cb/?code=123"]
+    assert a.logged_in
