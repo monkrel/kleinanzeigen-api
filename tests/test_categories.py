@@ -1,8 +1,18 @@
 """Offline tests for the bundled category catalog and name/id resolution."""
+
 import pytest
 
-from kleinanzeigen_api import KleinanzeigenAPI, Category, all_categories, find_categories
-from kleinanzeigen_api.categories import flatten_api_categories, get_category, resolve_category
+from kleinanzeigen_api import (
+    KleinanzeigenAPI,
+    Category,
+    all_categories,
+    find_categories,
+)
+from kleinanzeigen_api.categories import (
+    flatten_api_categories,
+    get_category,
+    resolve_category,
+)
 
 
 def test_catalog_loads():
@@ -71,23 +81,36 @@ def test_flatten_matches_bundled_schema():
     # synthetic mini-payload shaped like /api/categories.json
     payload = {
         "{http://www.ebayclassifiedsgroup.com/schema/category/v1}categories": {
-            "value": {"category": [{
-                "id-name": {"value": "Alle Kategorien"},
-                "localized-name": {"value": "Alle Kategorien"},
-                "category": [{
-                    "id-name": {"value": "Immobilien"},
-                    "localized-name": {"value": "Immobilien"},
-                    "category": [{
-                        "id-name": {"value": "Wohnung_Mieten"},
-                        "localized-name": {"value": "Mietwohnungen"},
-                        "id": "203", "category": [],
-                    }],
-                }],
-            }]},
+            "value": {
+                "category": [
+                    {
+                        "id-name": {"value": "Alle Kategorien"},
+                        "localized-name": {"value": "Alle Kategorien"},
+                        "category": [
+                            {
+                                "id-name": {"value": "Immobilien"},
+                                "localized-name": {"value": "Immobilien"},
+                                "category": [
+                                    {
+                                        "id-name": {"value": "Wohnung_Mieten"},
+                                        "localized-name": {"value": "Mietwohnungen"},
+                                        "id": "203",
+                                        "category": [],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            },
         }
     }
     flat = flatten_api_categories(payload)
-    assert flat == [{
-        "id": "203", "name": "Mietwohnungen",
-        "path": "Immobilien > Mietwohnungen", "real_estate": True,
-    }]
+    assert flat == [
+        {
+            "id": "203",
+            "name": "Mietwohnungen",
+            "path": "Immobilien > Mietwohnungen",
+            "real_estate": True,
+        }
+    ]

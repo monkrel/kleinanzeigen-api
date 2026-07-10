@@ -1,4 +1,5 @@
 """CLI behavior: clean exit codes/messages for bad input and API failures."""
+
 from kleinanzeigen_api import cli
 
 
@@ -19,6 +20,7 @@ def test_cli_unknown_category_exits_2(capsys):
 def test_cli_runtime_error_is_clean(monkeypatch, capsys):
     """A rotated-credential or network error should print 'error: ...' and exit
     with a nonzero code, not show a traceback."""
+
     class Boom:
         def __init__(self, **kw):
             pass

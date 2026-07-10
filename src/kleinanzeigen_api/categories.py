@@ -4,6 +4,7 @@ All ~159 categories are stored in data/categories.json, so lookups work without
 a network request. Use KleinanzeigenAPI.fetch_categories() to download an
 updated list if the categories change on the site.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,7 +21,7 @@ _CAT_NS = "{http://www.ebayclassifiedsgroup.com/schema/category/v1}categories"
 class Category:
     id: str
     name: str
-    path: str                 # e.g. "Auto, Rad & Boot > Fahrräder & Zubehör"
+    path: str  # e.g. "Auto, Rad & Boot > Fahrräder & Zubehör"
     real_estate: bool = False
 
     def to_dict(self) -> dict:
@@ -30,7 +31,9 @@ class Category:
 @lru_cache(maxsize=1)
 def all_categories() -> List[Category]:
     """Return the bundled catalog as a list of Category objects (cached)."""
-    text = (files("kleinanzeigen_api") / "data" / _DATA_FILE).read_text(encoding="utf-8")
+    text = (files("kleinanzeigen_api") / "data" / _DATA_FILE).read_text(
+        encoding="utf-8"
+    )
     return [
         Category(str(c["id"]), c["name"], c["path"], bool(c.get("real_estate")))
         for c in json.loads(text)
@@ -131,8 +134,11 @@ def flatten_api_categories(payload: dict) -> List[dict]:
     node = root.get("value", root) if isinstance(root, dict) else root
 
     def name_of(cat: dict) -> str:
-        return ((cat.get("localized-name") or {}).get("value")
-                or (cat.get("id-name") or {}).get("value") or "")
+        return (
+            (cat.get("localized-name") or {}).get("value")
+            or (cat.get("id-name") or {}).get("value")
+            or ""
+        )
 
     out: List[dict] = []
 
@@ -141,16 +147,18 @@ def flatten_api_categories(payload: dict) -> List[dict]:
         path_parts = parts + [nm] if nm else parts
         cid = cat.get("id")
         if cid:  # skip the synthetic "Alle Kategorien" root (no id)
-            out.append({
-                "id": str(cid),
-                "name": nm,
-                "path": " > ".join(path_parts),
-                "real_estate": real_estate,
-            })
+            out.append(
+                {
+                    "id": str(cid),
+                    "name": nm,
+                    "path": " > ".join(path_parts),
+                    "real_estate": real_estate,
+                }
+            )
         for child in cat.get("category", []) or []:
             walk(child, path_parts, real_estate)
 
-    for alle in node.get("category", []) or []:        # "Alle Kategorien"
+    for alle in node.get("category", []) or []:  # "Alle Kategorien"
         for branch in alle.get("category", []) or []:  # top-level branches
             is_re = (branch.get("id-name") or {}).get("value") == "Immobilien"
             walk(branch, [], is_re)

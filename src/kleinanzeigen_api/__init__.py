@@ -8,6 +8,7 @@ typed attributes, all image sizes, ISO timestamps and the price type.
 Not affiliated with or endorsed by Kleinanzeigen GmbH / Adevinta. See the README
 for the legal notes and rate-limiting advice.
 """
+
 from __future__ import annotations
 
 from .auth import Authenticator, NotLoggedIn

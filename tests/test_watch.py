@@ -4,14 +4,24 @@ No network: we replace _fetch_ad_json (frontier mode) or search_page (search
 mode) with fakes, so the frontier walk, the 404-retry queue, the cache-dodging
 size rotation and the client-side filters can be checked deterministically.
 """
+
 import itertools
 
 from kleinanzeigen_api import KleinanzeigenAPI, Listing
 from kleinanzeigen_api.client import _haversine_km
 
 
-def _ad_json(ad_id, *, title="thing", price=None, price_type="SPECIFIED_AMOUNT",
-             category="1", poster="PRIVATE", lat=None, lon=None):
+def _ad_json(
+    ad_id,
+    *,
+    title="thing",
+    price=None,
+    price_type="SPECIFIED_AMOUNT",
+    category="1",
+    poster="PRIVATE",
+    lat=None,
+    lon=None,
+):
     """Build a minimal single-ad payload the way the API returns it."""
     price_block = {"price-type": {"value": price_type}}
     if price is not None:
@@ -21,15 +31,19 @@ def _ad_json(ad_id, *, title="thing", price=None, price_type="SPECIFIED_AMOUNT",
         addr["latitude"] = {"value": lat}
     if lon is not None:
         addr["longitude"] = {"value": lon}
-    return {"{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad": {"value": {
-        "id": ad_id,
-        "title": {"value": title},
-        "description": {"value": ""},
-        "price": price_block,
-        "ad-address": addr,
-        "poster-type": {"value": poster},
-        "category": {"id": category},
-    }}}
+    return {
+        "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ad": {
+            "value": {
+                "id": ad_id,
+                "title": {"value": title},
+                "description": {"value": ""},
+                "price": price_block,
+                "ad-address": addr,
+                "poster-type": {"value": poster},
+                "category": {"id": category},
+            }
+        }
+    }
 
 
 def _fake_api(existing: dict):
@@ -41,10 +55,22 @@ def _fake_api(existing: dict):
 
 
 def _listing(ad_id, title="thing", posted=""):
-    return Listing(id=str(ad_id), title=title, description="", price=None,
-                   price_type="", url="", city="", zip_code="", latitude=None,
-                   longitude=None, size_m2=None, rooms=None, posted=posted,
-                   poster_type="")
+    return Listing(
+        id=str(ad_id),
+        title=title,
+        description="",
+        price=None,
+        price_type="",
+        url="",
+        city="",
+        zip_code="",
+        latitude=None,
+        longitude=None,
+        size_m2=None,
+        rooms=None,
+        posted=posted,
+        poster_type="",
+    )
 
 
 def _fake_search_api(pages):
@@ -91,9 +117,12 @@ def test_iter_new_ads_yields_only_new_and_stops_at_cap():
     ids = {i: _ad_json(i) for i in range(1000, 1011)}
     api = _fake_api(ids)
     # start just below the frontier; take the two newest
-    out = list(itertools.islice(
-        api.iter_new_ads(mode="frontier", start_id=1008, poll_interval=0), 2))
-    assert [l.id for l in out] == ["1009", "1010"]
+    out = list(
+        itertools.islice(
+            api.iter_new_ads(mode="frontier", start_id=1008, poll_interval=0), 2
+        )
+    )
+    assert [listing.id for listing in out] == ["1009", "1010"]
 
 
 def test_iter_new_ads_filters():
@@ -101,25 +130,54 @@ def test_iter_new_ads_filters():
         1001: _ad_json(1001, price_type="FREE", category="80", title="sofa gratis"),
         1002: _ad_json(1002, price=50, category="80", title="sofa"),
         1003: _ad_json(1003, price_type="FREE", category="99", title="lamp"),
-        1004: _ad_json(1004, price_type="FREE", category="80", title="bike frei",
-                       lat=52.52, lon=13.40),
+        1004: _ad_json(
+            1004,
+            price_type="FREE",
+            category="80",
+            title="bike frei",
+            lat=52.52,
+            lon=13.40,
+        ),
     }
     api = _fake_api(ids)
 
-    free = list(itertools.islice(
-        api.iter_new_ads(mode="frontier", start_id=1000, price_type="FREE",
-                         poll_interval=0), 3))
-    assert [l.id for l in free] == ["1001", "1003", "1004"]
+    free = list(
+        itertools.islice(
+            api.iter_new_ads(
+                mode="frontier", start_id=1000, price_type="FREE", poll_interval=0
+            ),
+            3,
+        )
+    )
+    assert [listing.id for listing in free] == ["1001", "1003", "1004"]
 
-    free_cat80 = list(itertools.islice(
-        api.iter_new_ads(mode="frontier", start_id=1000, price_type="FREE",
-                         category_id="80", poll_interval=0), 2))
-    assert [l.id for l in free_cat80] == ["1001", "1004"]
+    free_cat80 = list(
+        itertools.islice(
+            api.iter_new_ads(
+                mode="frontier",
+                start_id=1000,
+                price_type="FREE",
+                category_id="80",
+                poll_interval=0,
+            ),
+            2,
+        )
+    )
+    assert [listing.id for listing in free_cat80] == ["1001", "1004"]
 
-    near = list(itertools.islice(
-        api.iter_new_ads(mode="frontier", start_id=1000, near=(52.52, 13.40),
-                         radius_km=5, poll_interval=0), 1))
-    assert [l.id for l in near] == ["1004"]  # only ad with coords in range
+    near = list(
+        itertools.islice(
+            api.iter_new_ads(
+                mode="frontier",
+                start_id=1000,
+                near=(52.52, 13.40),
+                radius_km=5,
+                poll_interval=0,
+            ),
+            1,
+        )
+    )
+    assert [listing.id for listing in near] == ["1004"]  # only ad with coords in range
 
 
 def test_frontier_retries_missing_ids():
@@ -131,8 +189,8 @@ def test_frontier_retries_missing_ids():
 
     gen = api.iter_new_ads(mode="frontier", start_id=1004, poll_interval=0)
     # first pass: 1005 is missing, 1006-1010 come through
-    for l in itertools.islice(gen, 5):
-        seen.append(l.id)
+    for listing in itertools.islice(gen, 5):
+        seen.append(listing.id)
     assert seen == ["1006", "1007", "1008", "1009", "1010"]
 
     # now the held-back ad appears; the next round should pick it up
@@ -145,12 +203,18 @@ def test_frontier_gives_up_on_old_missing_ids():
     # with retry_missing_for=0 a hole is dropped right away and never yielded
     ids = {i: _ad_json(i) for i in range(1000, 1011) if i != 1005}
     api = _fake_api(ids)
-    gen = api.iter_new_ads(mode="frontier", start_id=1004, poll_interval=0,
-                           retry_missing_for=0)
-    assert [l.id for l in itertools.islice(gen, 5)] == [
-        "1006", "1007", "1008", "1009", "1010"]
-    ids[1005] = _ad_json(1005)   # too late, it was already dropped
-    ids[1011] = _ad_json(1011)   # give the generator something new to yield
+    gen = api.iter_new_ads(
+        mode="frontier", start_id=1004, poll_interval=0, retry_missing_for=0
+    )
+    assert [listing.id for listing in itertools.islice(gen, 5)] == [
+        "1006",
+        "1007",
+        "1008",
+        "1009",
+        "1010",
+    ]
+    ids[1005] = _ad_json(1005)  # too late, it was already dropped
+    ids[1011] = _ad_json(1011)  # give the generator something new to yield
     assert next(gen).id == "1011"
     # if 1005 were still in the retry queue it would come out before 1012
     # (retries run before the forward walk) - it must not
@@ -159,12 +223,12 @@ def test_frontier_gives_up_on_old_missing_ids():
 
 
 def test_search_mode_yields_only_new_ads():
-    page1 = [_listing(3), _listing(2), _listing(1)]          # newest first
+    page1 = [_listing(3), _listing(2), _listing(1)]  # newest first
     page2 = [_listing(5), _listing(4), _listing(3), _listing(2)]
     api = _fake_search_api([page1, page2])
 
     gen = api.iter_new_ads(mode="search", poll_interval=0)
-    out = [l.id for l in itertools.islice(gen, 2)]
+    out = [listing.id for listing in itertools.islice(gen, 2)]
     # page1 is the baseline (not yielded), only the genuinely new 4 and 5 come
     # out, oldest first
     assert out == ["4", "5"]
@@ -174,7 +238,7 @@ def test_search_mode_backfill_yields_first_page_too():
     page1 = [_listing(2), _listing(1)]
     api = _fake_search_api([page1])
     gen = api.iter_new_ads(mode="search", backfill=True, poll_interval=0)
-    assert [l.id for l in itertools.islice(gen, 2)] == ["1", "2"]
+    assert [listing.id for listing in itertools.islice(gen, 2)] == ["1", "2"]
 
 
 def test_search_mode_rotates_page_size():
@@ -197,7 +261,7 @@ def test_search_mode_skips_ads_older_than_start():
     page2 = [
         _listing(11, posted="2026-07-05T12:01:00.000+0200"),  # genuinely new
         _listing(10, posted="2026-07-05T12:00:00.000+0200"),
-        _listing(3, posted="2026-07-05T11:30:00.000+0200"),   # old, deeper page
+        _listing(3, posted="2026-07-05T11:30:00.000+0200"),  # old, deeper page
     ]
     api = _fake_search_api([page1, page2])
     gen = api.iter_new_ads(mode="search", poll_interval=0)
