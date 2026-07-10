@@ -157,3 +157,25 @@ def test_logout_forgets_everything(tmp_path):
     assert a.logged_in
     a.logout()
     assert a.logged_in is False
+
+
+def test_complete_login_auth0_error_raises(tmp_path):
+    a = Authenticator(token_path=str(tmp_path / "t.json"), session=FakeSession([]))
+    with pytest.raises(RuntimeError) as excinfo:
+        a.complete_login(
+            "https://cb/?error=access_denied&error_description=User+aborted",
+            "verifier",
+            None,
+        )
+    assert "Auth0 returned an error" in str(excinfo.value)
+    assert "access_denied" in str(excinfo.value)
+
+
+def test_exchange_http_error_raises(tmp_path):
+    a = Authenticator(
+        token_path=str(tmp_path / "t.json"),
+        session=FakeSession([FakeResp(401, {"error": "invalid_grant"})]),
+    )
+    with pytest.raises(RuntimeError) as excinfo:
+        a._exchange({"grant_type": "authorization_code"})
+    assert "Auth0 token endpoint returned 401" in str(excinfo.value)

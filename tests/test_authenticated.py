@@ -136,3 +136,84 @@ def test_headers_without_login_have_no_user_tokens():
     h = KleinanzeigenAPI()._headers()
     assert h["Authorization"].startswith("Basic ")
     assert "X-EBAYK-USERID-TOKEN" not in h
+
+
+# --- user_id resolution & authenticated actions ---------------------------- #
+class FakeResponse:
+    def __init__(self, data):
+        self._data = data
+
+    def json(self):
+        return self._data
+
+
+def test_user_id_lookup_and_cache(monkeypatch):
+    api = KleinanzeigenAPI(authenticator=FakeAuth())
+    calls = []
+
+    def fake_request(method, url, **kw):
+        calls.append(url)
+        return FakeResponse({"data": {"id": 999123}})
+
+    monkeypatch.setattr(api, "_request", fake_request)
+    assert api.user_id == "999123"
+    assert api.user_id == "999123"  # cached
+    assert len(calls) == 1
+
+
+def test_user_id_no_email_raises():
+    import pytest
+
+    class NoEmailAuth:
+        email = None
+
+        def access_token(self):
+            return "TOKEN"
+
+    api = KleinanzeigenAPI(authenticator=NoEmailAuth())
+    with pytest.raises(RuntimeError) as excinfo:
+        _ = api.user_id
+    assert "no email in the login" in str(excinfo.value)
+
+
+def test_authenticated_ad_and_chat_actions(monkeypatch):
+    api = KleinanzeigenAPI(user_id="12345", authenticator=FakeAuth())
+    requests_made = []
+
+    def fake_request(method, url, **kw):
+        requests_made.append((method, url, kw))
+        if "watchlist.json" in url or "ads.json" in url:
+            return FakeResponse(
+                {
+                    "{http://www.ebayclassifiedsgroup.com/schema/ad/v1}ads": {
+                        "value": {"ad": [{"id": "10", "title": {"value": "Ad 10"}}]}
+                    }
+                }
+            )
+        if "extend/status" in url:
+            return FakeResponse([{"id": "10", "eligible": True}])
+        if "create-conversation" in url:
+            return FakeResponse({"id": "conv-99"})
+        return FakeResponse({})
+
+    monkeypatch.setattr(api, "_request", fake_request)
+
+    # Chat actions
+    api.reply("conv-1", "Hallo")
+    api.mark_read(["conv-1", "conv-2"])
+    new_conv = api.start_conversation("ad-50", "Max Mustermann")
+    assert new_conv["id"] == "conv-99"
+
+    # Ad actions
+    my_ads = api.my_ads(q="test")
+    assert len(my_ads) == 1 and my_ads[0].id == "10"
+    watched = api.watchlist()
+    assert len(watched) == 1 and watched[0].id == "10"
+
+    api.pause_ad("10")
+    api.activate_ad("10")
+    api.delete_ad("10")
+    api.extend_ad("10")
+    status = api.extend_status(["10"])
+    assert status[0]["eligible"] is True
+    assert len(requests_made) >= 9

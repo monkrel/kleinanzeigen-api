@@ -269,20 +269,35 @@ def test_search_mode_skips_ads_older_than_start():
 
 
 def test_search_mode_rejects_start_id():
+    import pytest
+
     api = KleinanzeigenAPI(rate_limit=0)
-    try:
+    with pytest.raises(ValueError):
         api.iter_new_ads(mode="search", start_id=5)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("start_id in search mode should raise")
 
 
 def test_frontier_mode_rejects_location():
+    import pytest
+
     api = KleinanzeigenAPI(rate_limit=0)
-    try:
+    with pytest.raises(ValueError):
         api.iter_new_ads(mode="frontier", location="Berlin")
-    except ValueError:
+
+
+def test_watch_new_ads_invokes_callback():
+    ids = {i: _ad_json(i) for i in range(1000, 1003)}
+    api = _fake_api(ids)
+
+    seen = []
+
+    def callback(ad):
+        seen.append(ad.id)
+        if len(seen) == 2:
+            raise StopIteration("Stop watching in test")
+
+    try:
+        api.watch_new_ads(callback, mode="frontier", start_id=1000, poll_interval=0)
+    except StopIteration:
         pass
-    else:
-        raise AssertionError("location in frontier mode should raise")
+
+    assert seen == ["1001", "1002"]
